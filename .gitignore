@@ -1,0 +1,51 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Hidden macOS metadata files
+Icon?
+._*
+
+# Editor & IDE settings
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# byte‑compiled / scripts
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Logs, caches, deployment
+*.log
+*.sqlite3
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.pytest_cache/
+.coverage
+.cache/
+tox/
+nox/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Runtime files
+runtime_files/
+*.pid
