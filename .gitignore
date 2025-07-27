@@ -7,6 +7,9 @@
 Icon?
 ._*
 
+# Claude, Windsurf, etc.
+.claude/
+
 # Editor & IDE settings
 .vscode/
 .idea/
@@ -49,3 +52,6 @@ nox/
 # Runtime files
 runtime_files/
 *.pid
+
+# Recordings
+recordings/
