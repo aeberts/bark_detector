@@ -10,7 +10,7 @@ This is a Python-based bark detector project that uses audio processing to detec
 
 Install dependencies:
 ```bash
-pip install -r requirements.txt
+uv add -r requirements.txt
 ```
 ## Deployment
 
