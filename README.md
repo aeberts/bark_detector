@@ -95,6 +95,28 @@ Default settings in `bd.py`:
 - **Quiet Duration**: 30 seconds before stopping recording
 - **Session Gap**: 10 seconds to group barks into sessions
 
+## Calibration
+
+Example:
+
+uv run bd.py --calibrate-files \
+   --audio-files recordings/bark_sample1.wav samples/bark_sample2.wav samples/background.wav \
+   --ground-truth-files bark_sample1_gt.json bark_sample2_gt.json \
+   --save-profile kelowna_legal_evidence \
+   --sensitivity-range 0.01 0.2 \
+   --steps 25
+
+## Usage Examples
+
+### Discover Voice Memo files:
+uv run bd.py --list-convertible ~/Downloads
+
+### Record calibration sample:
+uv run bd.py --record my_bark_sample.wav
+
+### Use converted files for calibration:
+uv run bd.py --calibrate-files --audio-files voice_memo.m4a background.wav
+
 ## Troubleshooting
 
 ### TensorFlow Installation Issues

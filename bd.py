@@ -111,6 +111,9 @@ class FileBasedCalibration:
     def add_test_file(self, audio_path: Path, ground_truth_path: Path = None, 
                      ground_truth_events: List[GroundTruthEvent] = None):
         """Add a test file with ground truth data."""
+        # Validate and potentially convert audio file
+        converted_path = self._ensure_compatible_audio(audio_path)
+        
         if ground_truth_path and ground_truth_path.exists():
             # Load ground truth from JSON file
             with open(ground_truth_path, 'r') as f:
@@ -132,12 +135,122 @@ class FileBasedCalibration:
             events = []
             
         self.test_files.append({
-            'audio_path': audio_path,
+            'audio_path': converted_path,
+            'original_path': audio_path,
             'ground_truth': events,
             'is_negative': len(events) == 0
         })
         
         logger.info(f"📁 Added test file: {audio_path.name} ({len(events)} ground truth events)")
+    
+    def _ensure_compatible_audio(self, audio_path: Path) -> Path:
+        """Ensure audio file is in compatible format (WAV, 16kHz)."""
+        supported_extensions = ['.wav', '.m4a', '.mp3', '.aac', '.flac']
+        
+        if audio_path.suffix.lower() not in supported_extensions:
+            raise ValueError(f"Unsupported audio format: {audio_path.suffix}")
+        
+        # If already WAV, check if it needs resampling
+        if audio_path.suffix.lower() == '.wav':
+            try:
+                import soundfile as sf
+                info = sf.info(str(audio_path))
+                if info.samplerate == 16000 and info.channels == 1:
+                    return audio_path  # Already in correct format
+            except Exception:
+                pass  # Fall through to conversion
+        
+        # Convert to WAV 16kHz mono
+        converted_path = self._convert_audio_file(audio_path)
+        return converted_path
+    
+    def _convert_audio_file(self, audio_path: Path) -> Path:
+        """Convert audio file to WAV 16kHz mono format."""
+        import librosa
+        import soundfile as sf
+        
+        # Create converted file path
+        converted_dir = audio_path.parent / 'converted'
+        converted_dir.mkdir(exist_ok=True)
+        converted_path = converted_dir / f"{audio_path.stem}_16khz.wav"
+        
+        # Skip if already converted
+        if converted_path.exists():
+            logger.info(f"🔄 Using existing converted file: {converted_path.name}")
+            return converted_path
+        
+        try:
+            logger.info(f"🔄 Converting {audio_path.name} to WAV 16kHz...")
+            
+            # Load and convert
+            audio_data, sample_rate = librosa.load(str(audio_path), sr=16000, mono=True)
+            
+            # Save as WAV
+            sf.write(str(converted_path), audio_data, 16000, subtype='PCM_16')
+            
+            duration = len(audio_data) / 16000
+            logger.info(f"✅ Converted: {converted_path.name} ({duration:.1f}s)")
+            
+            return converted_path
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to convert {audio_path}: {e}")
+            raise
+    
+    def _extract_from_voice_memos(self, voice_memo_path: Path) -> Path:
+        """Extract audio from Mac Voice Memos format."""
+        # Voice Memos creates:
+        # - file.m4a (the actual audio)
+        # - file.composition (metadata)
+        # - file.composition/ (folder with segments)
+        
+        base_path = voice_memo_path.parent / voice_memo_path.stem
+        m4a_file = base_path.with_suffix('.m4a')
+        
+        if m4a_file.exists():
+            logger.info(f"📱 Found Voice Memo M4A: {m4a_file.name}")
+            return self._convert_audio_file(m4a_file)
+        else:
+            raise FileNotFoundError(f"No M4A file found for Voice Memo: {voice_memo_path}")
+    
+    def list_convertible_files(self, directory: Path) -> List[Dict]:
+        """List audio files that can be converted for calibration."""
+        supported_patterns = ['*.wav', '*.m4a', '*.mp3', '*.aac', '*.flac']
+        found_files = []
+        
+        for pattern in supported_patterns:
+            for file_path in directory.glob(pattern):
+                try:
+                    # Get basic info
+                    if file_path.suffix.lower() == '.m4a':
+                        # Could be Voice Memo
+                        composition_file = file_path.with_suffix('.composition')
+                        is_voice_memo = composition_file.exists()
+                    else:
+                        is_voice_memo = False
+                    
+                    # Get duration if possible
+                    try:
+                        import soundfile as sf
+                        info = sf.info(str(file_path))
+                        duration = info.duration
+                        sample_rate = info.samplerate
+                    except:
+                        duration = 0
+                        sample_rate = 0
+                    
+                    found_files.append({
+                        'path': file_path,
+                        'type': 'Voice Memo' if is_voice_memo else file_path.suffix.upper()[1:],
+                        'duration': duration,
+                        'sample_rate': sample_rate,
+                        'size_mb': file_path.stat().st_size / (1024 * 1024)
+                    })
+                    
+                except Exception as e:
+                    logger.debug(f"Could not analyze {file_path}: {e}")
+        
+        return sorted(found_files, key=lambda x: x['path'].name)
     
     def create_ground_truth_template(self, audio_path: Path, output_path: Path = None):
         """Create a template ground truth file for manual annotation."""
@@ -347,6 +460,188 @@ class FileBasedCalibration:
         )
         
         return profile
+
+
+class ManualRecorder:
+    """Manual recording mode for capturing calibration samples."""
+    
+    def __init__(self, detector, output_path: Path):
+        self.detector = detector
+        self.output_path = Path(output_path)
+        self.sample_rate = 16000
+        self.channels = 1
+        self.format = pyaudio.paInt16
+        self.chunk_size = 1024
+        
+        # Audio recording
+        self.audio = None
+        self.stream = None
+        self.frames = []
+        self.is_recording = False
+        
+        # Terminal settings for non-blocking input
+        self.original_settings = None
+        
+    def start_recording(self):
+        """Start manual recording session."""
+        # Ensure output directory exists
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        logger.info("🎙️  Manual Recording Mode")
+        logger.info(f"Output: {self.output_path}")
+        logger.info(f"Format: WAV 16kHz Mono (YAMNet compatible)")
+        logger.info("")
+        logger.info("Controls:")
+        logger.info("  [SPACE] - Start/Stop recording")
+        logger.info("  [ESC] or [Q] - Finish and save")
+        logger.info("  [Ctrl+C] - Cancel without saving")
+        logger.info("")
+        logger.info("Press SPACE to start recording...")
+        
+        # Setup audio
+        self._setup_audio()
+        
+        # Setup keyboard
+        self._setup_keyboard()
+        
+        try:
+            self._recording_loop()
+        except KeyboardInterrupt:
+            logger.info("\n❌ Recording cancelled by user")
+        finally:
+            self._cleanup()
+            
+    def _setup_audio(self):
+        """Initialize PyAudio."""
+        self.audio = pyaudio.PyAudio()
+        
+    def _setup_keyboard(self):
+        """Setup non-blocking keyboard input."""
+        if sys.platform != 'win32':
+            self.original_settings = termios.tcgetattr(sys.stdin)
+            tty.setraw(sys.stdin.fileno())
+    
+    def _restore_keyboard(self):
+        """Restore original keyboard settings."""
+        if sys.platform != 'win32' and self.original_settings:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.original_settings)
+    
+    def _get_key(self):
+        """Get keyboard input without blocking."""
+        if sys.platform == 'win32':
+            import msvcrt
+            if msvcrt.kbhit():
+                key = msvcrt.getch()
+                return key.decode('utf-8') if isinstance(key, bytes) else key
+        else:
+            if select.select([sys.stdin], [], [], 0)[0]:
+                key = sys.stdin.read(1)
+                return key
+        return None
+    
+    def _recording_loop(self):
+        """Main recording loop."""
+        running = True
+        
+        while running:
+            key = self._get_key()
+            
+            if key:
+                if key == ' ':  # Space - toggle recording
+                    if self.is_recording:
+                        self._stop_recording()
+                    else:
+                        self._start_recording()
+                        
+                elif key in ['\x1b', 'q', 'Q']:  # ESC or Q - finish
+                    if self.is_recording:
+                        self._stop_recording()
+                    self._save_recording()
+                    running = False
+                    
+            time.sleep(0.1)  # Small delay to prevent excessive CPU usage
+    
+    def _start_recording(self):
+        """Start audio recording."""
+        if self.is_recording:
+            return
+            
+        logger.info("🔴 Recording started... Press SPACE to stop")
+        
+        self.frames = []
+        self.stream = self.audio.open(
+            format=self.format,
+            channels=self.channels,
+            rate=self.sample_rate,
+            input=True,
+            frames_per_buffer=self.chunk_size,
+            stream_callback=self._audio_callback
+        )
+        
+        self.stream.start_stream()
+        self.is_recording = True
+    
+    def _stop_recording(self):
+        """Stop audio recording."""
+        if not self.is_recording:
+            return
+            
+        logger.info("⏹️  Recording stopped. Press SPACE to record more, or ESC/Q to finish")
+        
+        self.is_recording = False
+        
+        if self.stream:
+            self.stream.stop_stream()
+            self.stream.close()
+            self.stream = None
+    
+    def _audio_callback(self, in_data, frame_count, time_info, status):
+        """Audio callback for recording."""
+        if self.is_recording:
+            self.frames.append(in_data)
+        return (in_data, pyaudio.paContinue)
+    
+    def _save_recording(self):
+        """Save recorded audio to file."""
+        if not self.frames:
+            logger.info("❌ No audio recorded")
+            return
+            
+        try:
+            # Combine all frames
+            audio_data = b''.join(self.frames)
+            
+            # Save as WAV file
+            with wave.open(str(self.output_path), 'wb') as wav_file:
+                wav_file.setnchannels(self.channels)
+                wav_file.setsampwidth(self.audio.get_sample_size(self.format))
+                wav_file.setframerate(self.sample_rate)
+                wav_file.writeframes(audio_data)
+            
+            # Calculate duration
+            duration = len(audio_data) / (self.sample_rate * self.channels * 2)  # 2 bytes per sample
+            
+            logger.info(f"✅ Recording saved: {self.output_path}")
+            logger.info(f"   Duration: {duration:.1f} seconds")
+            logger.info(f"   Format: WAV 16kHz Mono")
+            logger.info("")
+            logger.info("💡 To use this file for calibration:")
+            logger.info(f"   1. Create ground truth: uv run bd.py --create-template {self.output_path}")
+            logger.info(f"   2. Edit the ground truth JSON file with bark timestamps")
+            logger.info(f"   3. Run calibration: uv run bd.py --calibrate-files --audio-files {self.output_path} --ground-truth-files {self.output_path.with_suffix('.json')}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save recording: {e}")
+    
+    def _cleanup(self):
+        """Clean up resources."""
+        if self.is_recording:
+            self._stop_recording()
+            
+        if self.audio:
+            self.audio.terminate()
+            
+        self._restore_keyboard()
 
 
 class CalibrationMode:
@@ -1285,6 +1580,8 @@ Examples:
   
   # Profile management
   uv run bd.py --list-profiles                   # Show available profiles
+  uv run bd.py --list-convertible ~/Downloads    # Find Voice Memo files
+  uv run bd.py --record bark_sample.wav          # Record calibration sample
         """
     )
     
@@ -1325,6 +1622,18 @@ Examples:
         '--list-profiles', 
         action='store_true',
         help='List available calibration profiles'
+    )
+    
+    parser.add_argument(
+        '--list-convertible', 
+        type=str,
+        help='List convertible audio files in specified directory'
+    )
+    
+    parser.add_argument(
+        '--record', 
+        type=str,
+        help='Record calibration sample to specified file (WAV format)'
     )
     
     # File-based calibration
@@ -1412,6 +1721,62 @@ def main():
                 logger.info(f"    Created: {profile['created'][:10]} - {profile['notes']}")
         else:
             logger.info("No calibration profiles found")
+        return
+    
+    if args.list_convertible:
+        from pathlib import Path
+        calibrator = FileBasedCalibration(detector)
+        directory = Path(args.list_convertible).expanduser()
+        
+        if not directory.exists():
+            logger.error(f"Directory not found: {directory}")
+            return
+        
+        logger.info(f"🔍 Scanning {directory} for convertible audio files...")
+        found_files = calibrator.list_convertible_files(directory)
+        
+        if found_files:
+            logger.info(f"📁 Found {len(found_files)} convertible audio files:")
+            total_duration = 0
+            
+            for file_info in found_files:
+                path = file_info['path']
+                file_type = file_info['type']
+                duration = file_info['duration']
+                sample_rate = file_info['sample_rate']
+                size_mb = file_info['size_mb']
+                
+                duration_str = f"{duration:.1f}s" if duration > 0 else "Unknown"
+                sr_str = f"{sample_rate}Hz" if sample_rate > 0 else "Unknown"
+                
+                logger.info(f"  📄 {path.name}")
+                logger.info(f"     Type: {file_type}, Duration: {duration_str}, Sample Rate: {sr_str}, Size: {size_mb:.1f}MB")
+                
+                if duration > 0:
+                    total_duration += duration
+            
+            if total_duration > 0:
+                total_min = total_duration / 60
+                logger.info(f"\n📊 Total duration: {total_min:.1f} minutes")
+                
+            logger.info(f"\n💡 To use these files for calibration:")
+            logger.info(f"  uv run bd.py --calibrate-files --audio-files {' '.join(str(f['path']) for f in found_files[:3])}")
+        else:
+            logger.info("No convertible audio files found")
+            logger.info("Supported formats: WAV, M4A, MP3, AAC, FLAC (including Voice Memos)")
+        return
+    
+    # Manual recording mode
+    if args.record:
+        output_path = Path(args.record)
+        
+        # Ensure the file has .wav extension
+        if output_path.suffix.lower() != '.wav':
+            output_path = output_path.with_suffix('.wav')
+        
+        logger.info("🎙️  Starting manual recording mode for calibration...")
+        recorder = ManualRecorder(detector, output_path)
+        recorder.start_recording()
         return
     
     # Create ground truth template
