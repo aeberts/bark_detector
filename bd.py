@@ -91,6 +91,264 @@ class CalibrationProfile:
         return cls(**data)
 
 
+@dataclass
+class GroundTruthEvent:
+    """Represents a ground truth bark event with timestamp."""
+    start_time: float
+    end_time: float
+    description: str = ""
+    confidence_expected: float = 1.0
+
+
+class FileBasedCalibration:
+    """File-based calibration using ground truth timestamps."""
+    
+    def __init__(self, detector):
+        self.detector = detector
+        self.test_files = []
+        self.results = []
+        
+    def add_test_file(self, audio_path: Path, ground_truth_path: Path = None, 
+                     ground_truth_events: List[GroundTruthEvent] = None):
+        """Add a test file with ground truth data."""
+        if ground_truth_path and ground_truth_path.exists():
+            # Load ground truth from JSON file
+            with open(ground_truth_path, 'r') as f:
+                gt_data = json.load(f)
+            
+            events = []
+            for event_data in gt_data.get('events', []):
+                events.append(GroundTruthEvent(
+                    start_time=event_data['start_time'],
+                    end_time=event_data['end_time'],
+                    description=event_data.get('description', ''),
+                    confidence_expected=event_data.get('confidence_expected', 1.0)
+                ))
+            
+        elif ground_truth_events:
+            events = ground_truth_events
+        else:
+            # No ground truth - assume this is a negative file (no barks)
+            events = []
+            
+        self.test_files.append({
+            'audio_path': audio_path,
+            'ground_truth': events,
+            'is_negative': len(events) == 0
+        })
+        
+        logger.info(f"📁 Added test file: {audio_path.name} ({len(events)} ground truth events)")
+    
+    def create_ground_truth_template(self, audio_path: Path, output_path: Path = None):
+        """Create a template ground truth file for manual annotation."""
+        if output_path is None:
+            output_path = audio_path.parent / f"{audio_path.stem}_ground_truth.json"
+        
+        # Get audio duration
+        import soundfile as sf
+        try:
+            info = sf.info(str(audio_path))
+            duration = info.duration
+        except Exception:
+            duration = 60.0  # Default if can't read
+        
+        template = {
+            "audio_file": str(audio_path),
+            "duration": duration,
+            "instructions": "Add bark events with start_time and end_time in seconds",
+            "events": [
+                {
+                    "start_time": 5.0,
+                    "end_time": 7.5,
+                    "description": "Example: Dog barking - replace with actual timestamps",
+                    "confidence_expected": 1.0
+                }
+            ]
+        }
+        
+        with open(output_path, 'w') as f:
+            json.dump(template, f, indent=2)
+        
+        logger.info(f"📝 Ground truth template created: {output_path}")
+        logger.info("Edit this file to add actual bark timestamps, then run calibration")
+        return output_path
+    
+    def run_sensitivity_sweep(self, sensitivity_range: Tuple[float, float] = (0.01, 0.5), 
+                            steps: int = 20) -> Dict:
+        """Run calibration across a range of sensitivity values."""
+        logger.info(f"🔍 Running sensitivity sweep: {sensitivity_range[0]:.3f} to {sensitivity_range[1]:.3f}")
+        logger.info(f"📊 Testing {len(self.test_files)} files with {steps} sensitivity levels")
+        
+        if not self.test_files:
+            raise ValueError("No test files added. Use add_test_file() first.")
+        
+        # Generate sensitivity values to test
+        sensitivity_values = np.linspace(sensitivity_range[0], sensitivity_range[1], steps)
+        
+        sweep_results = []
+        
+        for i, sensitivity in enumerate(sensitivity_values):
+            logger.info(f"🎛️  Testing sensitivity {sensitivity:.3f} ({i+1}/{steps})")
+            
+            # Set detector sensitivity
+            self.detector.sensitivity = sensitivity
+            
+            # Test all files at this sensitivity
+            file_results = []
+            total_matches = 0
+            total_false_positives = 0
+            total_missed = 0
+            total_ground_truth = 0
+            
+            for test_file in self.test_files:
+                result = self._test_single_file(test_file, sensitivity)
+                file_results.append(result)
+                
+                total_matches += result['matches']
+                total_false_positives += result['false_positives']
+                total_missed += result['missed']
+                total_ground_truth += len(test_file['ground_truth'])
+            
+            # Calculate overall metrics
+            precision = total_matches / max(total_matches + total_false_positives, 1)
+            recall = total_matches / max(total_ground_truth, 1)
+            f1_score = 2 * (precision * recall) / max(precision + recall, 0.001)
+            
+            sweep_result = {
+                'sensitivity': sensitivity,
+                'precision': precision,
+                'recall': recall,
+                'f1_score': f1_score,
+                'total_matches': total_matches,
+                'total_false_positives': total_false_positives,
+                'total_missed': total_missed,
+                'total_ground_truth': total_ground_truth,
+                'file_results': file_results
+            }
+            
+            sweep_results.append(sweep_result)
+            
+            logger.info(f"   Precision: {precision:.1%}, Recall: {recall:.1%}, F1: {f1_score:.3f}")
+        
+        # Find optimal sensitivity
+        best_result = max(sweep_results, key=lambda x: x['f1_score'])
+        
+        logger.info("🎯 Calibration Results:")
+        logger.info(f"  Optimal Sensitivity: {best_result['sensitivity']:.3f}")
+        logger.info(f"  Best F1 Score: {best_result['f1_score']:.3f}")
+        logger.info(f"  Precision: {best_result['precision']:.1%}")
+        logger.info(f"  Recall: {best_result['recall']:.1%}")
+        logger.info(f"  Total Ground Truth Events: {best_result['total_ground_truth']}")
+        logger.info(f"  Matches: {best_result['total_matches']}")
+        logger.info(f"  False Positives: {best_result['total_false_positives']}")
+        logger.info(f"  Missed: {best_result['total_missed']}")
+        
+        return {
+            'optimal_sensitivity': best_result['sensitivity'],
+            'best_result': best_result,
+            'all_results': sweep_results
+        }
+    
+    def _test_single_file(self, test_file: Dict, sensitivity: float) -> Dict:
+        """Test detection on a single file."""
+        audio_path = test_file['audio_path']
+        ground_truth = test_file['ground_truth']
+        
+        try:
+            # Load audio file
+            import librosa
+            audio_data, sample_rate = librosa.load(str(audio_path), sr=16000, mono=True)
+            
+            # Run detection
+            detected_events = self.detector._detect_barks_in_buffer(audio_data)
+            
+            # Calculate matches
+            matches, false_positives, missed = self._calculate_matches(
+                detected_events, ground_truth, tolerance=2.0
+            )
+            
+            return {
+                'file': audio_path.name,
+                'sensitivity': sensitivity,
+                'ground_truth_count': len(ground_truth),
+                'detected_count': len(detected_events),
+                'matches': matches,
+                'false_positives': false_positives,
+                'missed': missed,
+                'precision': matches / max(len(detected_events), 1),
+                'recall': matches / max(len(ground_truth), 1)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error testing file {audio_path}: {e}")
+            return {
+                'file': audio_path.name,
+                'error': str(e),
+                'matches': 0,
+                'false_positives': 0,
+                'missed': len(ground_truth)
+            }
+    
+    def _calculate_matches(self, detected_events: List[BarkEvent], 
+                          ground_truth: List[GroundTruthEvent], 
+                          tolerance: float = 2.0) -> Tuple[int, int, int]:
+        """Calculate matches between detected and ground truth events."""
+        matches = 0
+        matched_detections = set()
+        matched_ground_truth = set()
+        
+        # Find matches (detected event overlaps with ground truth within tolerance)
+        for i, detected in enumerate(detected_events):
+            if i in matched_detections:
+                continue
+                
+            for j, gt_event in enumerate(ground_truth):
+                if j in matched_ground_truth:
+                    continue
+                
+                # Check for overlap or proximity
+                detected_center = (detected.start_time + detected.end_time) / 2
+                gt_center = (gt_event.start_time + gt_event.end_time) / 2
+                
+                if abs(detected_center - gt_center) <= tolerance:
+                    matches += 1
+                    matched_detections.add(i)
+                    matched_ground_truth.add(j)
+                    break
+        
+        false_positives = len(detected_events) - len(matched_detections)
+        missed = len(ground_truth) - len(matched_ground_truth)
+        
+        return matches, false_positives, missed
+    
+    def generate_calibration_profile(self, calibration_results: Dict, 
+                                   profile_name: str) -> CalibrationProfile:
+        """Generate a calibration profile from results."""
+        best_result = calibration_results['best_result']
+        
+        # Calculate background noise level from negative files
+        background_noise = 0.0
+        negative_files = [f for f in self.test_files if f['is_negative']]
+        if negative_files:
+            # TODO: Calculate actual background noise level
+            background_noise = -45.0  # Placeholder
+        
+        profile = CalibrationProfile(
+            name=profile_name,
+            sensitivity=calibration_results['optimal_sensitivity'],
+            min_bark_duration=0.3,
+            session_gap_threshold=10.0,
+            background_noise_level=background_noise,
+            created_date=datetime.now().isoformat(),
+            location="Kelowna",
+            notes=f"File-based calibration: F1={best_result['f1_score']:.3f}, "
+                  f"P={best_result['precision']:.1%}, R={best_result['recall']:.1%}, "
+                  f"Files={len(self.test_files)}"
+        )
+        
+        return profile
+
+
 class CalibrationMode:
     """Real-time calibration with human feedback."""
     
@@ -1008,11 +1266,25 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  uv run bd.py                           # Normal detection mode
-  uv run bd.py --calibrate               # 10-minute calibration
-  uv run bd.py --calibrate --duration 5  # 5-minute calibration
-  uv run bd.py --profile kelowna_dogs    # Use saved profile
-  uv run bd.py --list-profiles           # Show available profiles
+  # Normal detection mode
+  uv run bd.py                                    # Use default settings
+  uv run bd.py --profile kelowna_dogs            # Use saved profile
+  
+  # Real-time calibration (spacebar feedback)  
+  uv run bd.py --calibrate --duration 10 --save-profile kelowna_dogs
+  
+  # File-based calibration (more accurate)
+  uv run bd.py --create-template bark_sample.wav # Create ground truth template
+  uv run bd.py --calibrate-files --audio-files bark1.wav bark2.wav \\
+               --ground-truth-files bark1_gt.json bark2_gt.json \\
+               --save-profile kelowna_optimized
+  
+  # Calibration without ground truth (test for false positives)
+  uv run bd.py --calibrate-files --audio-files background_noise.wav \\
+               --save-profile noise_test
+  
+  # Profile management
+  uv run bd.py --list-profiles                   # Show available profiles
         """
     )
     
@@ -1021,6 +1293,12 @@ Examples:
         '--calibrate', 
         action='store_true',
         help='Start real-time calibration mode'
+    )
+    
+    parser.add_argument(
+        '--calibrate-files', 
+        action='store_true',
+        help='Start file-based calibration mode'
     )
     
     parser.add_argument(
@@ -1047,6 +1325,40 @@ Examples:
         '--list-profiles', 
         action='store_true',
         help='List available calibration profiles'
+    )
+    
+    # File-based calibration
+    parser.add_argument(
+        '--audio-files', 
+        nargs='+',
+        help='Audio files for file-based calibration (WAV format)'
+    )
+    
+    parser.add_argument(
+        '--ground-truth-files', 
+        nargs='+',
+        help='Ground truth JSON files (optional, same order as audio files)'
+    )
+    
+    parser.add_argument(
+        '--create-template', 
+        type=str,
+        help='Create ground truth template for specified audio file'
+    )
+    
+    parser.add_argument(
+        '--sensitivity-range', 
+        nargs=2, 
+        type=float, 
+        default=[0.01, 0.5],
+        help='Sensitivity range for sweep (default: 0.01 0.5)'
+    )
+    
+    parser.add_argument(
+        '--steps', 
+        type=int, 
+        default=20,
+        help='Number of steps in sensitivity sweep (default: 20)'
     )
     
     # Detection parameters
@@ -1102,6 +1414,20 @@ def main():
             logger.info("No calibration profiles found")
         return
     
+    # Create ground truth template
+    if args.create_template:
+        audio_path = Path(args.create_template)
+        if not audio_path.exists():
+            logger.error(f"Audio file not found: {audio_path}")
+            return
+        
+        calibrator = FileBasedCalibration(detector)
+        template_path = calibrator.create_ground_truth_template(audio_path)
+        logger.info(f"✅ Template created: {template_path}")
+        logger.info("Edit the template file to add bark timestamps, then run:")
+        logger.info(f"  uv run bd.py --calibrate-files --audio-files {audio_path} --ground-truth-files {template_path}")
+        return
+    
     # Load profile if specified
     if args.profile:
         try:
@@ -1130,6 +1456,64 @@ def main():
                 logger.info(f"   To use: uv run bd.py --profile {args.save_profile}")
             else:
                 logger.info("✅ Calibration complete! Use --save-profile to save settings.")
+        
+        return
+    
+    # File-based calibration mode
+    if args.calibrate_files:
+        if not args.audio_files:
+            logger.error("--audio-files required for file-based calibration")
+            logger.info("Example: uv run bd.py --calibrate-files --audio-files bark1.wav bark2.wav")
+            return
+        
+        logger.info("📁 Starting file-based calibration...")
+        
+        calibrator = FileBasedCalibration(detector)
+        
+        # Add test files
+        audio_paths = [Path(f) for f in args.audio_files]
+        ground_truth_paths = []
+        
+        if args.ground_truth_files:
+            if len(args.ground_truth_files) != len(args.audio_files):
+                logger.error("Number of ground truth files must match number of audio files")
+                return
+            ground_truth_paths = [Path(f) for f in args.ground_truth_files]
+        
+        # Validate files exist
+        for audio_path in audio_paths:
+            if not audio_path.exists():
+                logger.error(f"Audio file not found: {audio_path}")
+                return
+        
+        for gt_path in ground_truth_paths:
+            if not gt_path.exists():
+                logger.error(f"Ground truth file not found: {gt_path}")
+                return
+        
+        # Add files to calibrator
+        for i, audio_path in enumerate(audio_paths):
+            gt_path = ground_truth_paths[i] if i < len(ground_truth_paths) else None
+            calibrator.add_test_file(audio_path, gt_path)
+        
+        # Run calibration
+        try:
+            results = calibrator.run_sensitivity_sweep(
+                sensitivity_range=tuple(args.sensitivity_range),
+                steps=args.steps
+            )
+            
+            # Create and save profile if requested
+            if args.save_profile:
+                profile = calibrator.generate_calibration_profile(results, args.save_profile)
+                detector.save_profile(profile)
+                logger.info(f"✅ File-based calibration complete! Profile '{args.save_profile}' saved.")
+                logger.info(f"   To use: uv run bd.py --profile {args.save_profile}")
+            else:
+                logger.info("✅ File-based calibration complete! Use --save-profile to save settings.")
+                
+        except Exception as e:
+            logger.error(f"Calibration failed: {e}")
         
         return
     
