@@ -23,6 +23,13 @@ from dataclasses import dataclass
 import tensorflow as tf
 import tensorflow_hub as hub
 import librosa
+import argparse
+import sys
+import select
+import termios
+import tty
+import json
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -59,6 +66,259 @@ class BarkingSession:
     intensity: float = 0.0
 
 
+@dataclass
+class CalibrationProfile:
+    """Stores calibration settings for a specific environment."""
+    name: str
+    sensitivity: float
+    min_bark_duration: float
+    session_gap_threshold: float
+    background_noise_level: float
+    created_date: str
+    location: str = ""
+    notes: str = ""
+
+    def save(self, filepath: Path):
+        """Save profile to JSON file."""
+        with open(filepath, 'w') as f:
+            json.dump(self.__dict__, f, indent=2)
+    
+    @classmethod
+    def load(cls, filepath: Path):
+        """Load profile from JSON file."""
+        with open(filepath, 'r') as f:
+            data = json.load(f)
+        return cls(**data)
+
+
+class CalibrationMode:
+    """Real-time calibration with human feedback."""
+    
+    def __init__(self, detector, duration_minutes: int = 10):
+        self.detector = detector
+        self.duration_seconds = duration_minutes * 60
+        self.start_time = time.time()
+        
+        # Feedback tracking
+        self.human_marks = []
+        self.system_detections = []
+        self.sensitivity_history = []
+        
+        # Terminal settings for non-blocking input
+        self.original_settings = None
+        self.is_calibrating = False
+        
+    def start_calibration(self):
+        """Start real-time calibration mode."""
+        logger.info("🎯 Starting Real-Time Calibration Mode")
+        logger.info(f"Duration: {self.duration_seconds/60:.1f} minutes")
+        logger.info("Instructions:")
+        logger.info("  [SPACE] - Mark when you hear a bark")
+        logger.info("  [ESC] - Finish calibration early")
+        logger.info("  [Q] - Quit without saving")
+        logger.info("")
+        
+        # Setup non-blocking keyboard input
+        self._setup_keyboard()
+        self.is_calibrating = True
+        
+        # Start calibration loop
+        try:
+            self._calibration_loop()
+        finally:
+            self._cleanup_keyboard()
+            
+    def _setup_keyboard(self):
+        """Setup non-blocking keyboard input."""
+        try:
+            self.original_settings = termios.tcgetattr(sys.stdin)
+            tty.setraw(sys.stdin.fileno())
+        except Exception as e:
+            logger.warning(f"Could not setup keyboard input: {e}")
+            self.original_settings = None
+    
+    def _cleanup_keyboard(self):
+        """Restore original keyboard settings."""
+        if self.original_settings:
+            try:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self.original_settings)
+            except Exception as e:
+                logger.warning(f"Could not restore keyboard settings: {e}")
+    
+    def _check_keyboard_input(self):
+        """Check for keyboard input without blocking."""
+        if self.original_settings is None:
+            return None
+            
+        try:
+            if select.select([sys.stdin], [], [], 0)[0]:
+                key = sys.stdin.read(1)
+                return key
+        except Exception:
+            pass
+        return None
+    
+    def _calibration_loop(self):
+        """Main calibration loop."""
+        last_status_update = time.time()
+        last_optimization = time.time()
+        
+        while self.is_calibrating:
+            current_time = time.time()
+            elapsed = current_time - self.start_time
+            
+            # Check if calibration time is up
+            if elapsed >= self.duration_seconds:
+                logger.info("⏰ Calibration time completed")
+                break
+            
+            # Check for keyboard input
+            key = self._check_keyboard_input()
+            if key:
+                if key == ' ':  # Spacebar
+                    self._mark_human_bark(current_time)
+                elif key == '\x1b':  # ESC
+                    logger.info("🛑 Calibration ended by user")
+                    break
+                elif key.lower() == 'q':
+                    logger.info("❌ Calibration cancelled")
+                    return None
+            
+            # Update status every 5 seconds
+            if current_time - last_status_update >= 5.0:
+                self._show_status(elapsed)
+                last_status_update = current_time
+            
+            # Auto-optimize sensitivity every 30 seconds
+            if current_time - last_optimization >= 30.0:
+                self._auto_optimize_sensitivity()
+                last_optimization = current_time
+            
+            time.sleep(0.1)
+        
+        # Generate calibration results
+        return self._generate_calibration_results()
+    
+    def _mark_human_bark(self, timestamp: float):
+        """Record human bark marking."""
+        self.human_marks.append(timestamp)
+        logger.info(f"👤 Human marked bark at {timestamp:.1f}s")
+    
+    def record_system_detection(self, bark_event: BarkEvent):
+        """Record system detection (called by detector)."""
+        detection_time = time.time() - self.start_time
+        self.system_detections.append({
+            'time': detection_time,
+            'confidence': bark_event.confidence,
+            'intensity': bark_event.intensity,
+            'duration': bark_event.end_time - bark_event.start_time
+        })
+    
+    def _show_status(self, elapsed: float):
+        """Show calibration status."""
+        remaining = (self.duration_seconds - elapsed) / 60
+        human_count = len(self.human_marks)
+        system_count = len(self.system_detections)
+        
+        # Calculate match rate
+        matches, false_pos, missed = self._calculate_matches()
+        match_rate = matches / max(human_count, 1) * 100
+        
+        # Clear screen and show status
+        print(f"\r\033[K🎯 Calibration: {elapsed/60:.1f}m / {self.duration_seconds/60:.1f}m remaining", end="")
+        print(f"\r\033[K📊 Human: {human_count} | System: {system_count} | Match: {match_rate:.0f}% | Sensitivity: {self.detector.sensitivity:.3f}")
+        print(f"\r\033[K✅ Matches: {matches} | ❌ False+: {false_pos} | ❓ Missed: {missed}")
+        
+    def _calculate_matches(self, tolerance: float = 3.0):
+        """Calculate matches between human marks and system detections."""
+        matches = 0
+        false_positives = 0
+        
+        # Find matches (system detection within tolerance of human mark)
+        matched_detections = set()
+        
+        for human_time in self.human_marks:
+            for i, detection in enumerate(self.system_detections):
+                if i in matched_detections:
+                    continue
+                if abs(detection['time'] - human_time) <= tolerance:
+                    matches += 1
+                    matched_detections.add(i)
+                    break
+        
+        # Count false positives (unmatched detections)
+        false_positives = len(self.system_detections) - len(matched_detections)
+        
+        # Count missed (unmatched human marks)
+        missed = len(self.human_marks) - matches
+        
+        return matches, false_positives, missed
+    
+    def _auto_optimize_sensitivity(self):
+        """Automatically adjust sensitivity based on feedback."""
+        if len(self.human_marks) < 2 or len(self.system_detections) < 2:
+            return
+        
+        matches, false_pos, missed = self._calculate_matches()
+        
+        # Calculate current performance
+        precision = matches / max(len(self.system_detections), 1)
+        recall = matches / max(len(self.human_marks), 1)
+        
+        # Adjust sensitivity
+        current_sensitivity = self.detector.sensitivity
+        new_sensitivity = current_sensitivity
+        
+        if false_pos > missed:
+            # Too many false positives - decrease sensitivity
+            new_sensitivity = current_sensitivity * 0.9
+        elif missed > false_pos:
+            # Missing too many - increase sensitivity  
+            new_sensitivity = current_sensitivity * 1.1
+        
+        # Clamp to reasonable range
+        new_sensitivity = max(0.01, min(0.5, new_sensitivity))
+        
+        if abs(new_sensitivity - current_sensitivity) > 0.005:
+            self.detector.sensitivity = new_sensitivity
+            self.sensitivity_history.append({
+                'time': time.time() - self.start_time,
+                'sensitivity': new_sensitivity,
+                'precision': precision,
+                'recall': recall
+            })
+            logger.info(f"🎛️ Auto-adjusted sensitivity: {current_sensitivity:.3f} → {new_sensitivity:.3f}")
+    
+    def _generate_calibration_results(self):
+        """Generate final calibration results."""
+        matches, false_pos, missed = self._calculate_matches()
+        
+        precision = matches / max(len(self.system_detections), 1)
+        recall = matches / max(len(self.human_marks), 1)
+        f1_score = 2 * (precision * recall) / max(precision + recall, 0.001)
+        
+        results = {
+            'optimal_sensitivity': self.detector.sensitivity,
+            'precision': precision,
+            'recall': recall,
+            'f1_score': f1_score,
+            'human_marks': len(self.human_marks),
+            'system_detections': len(self.system_detections),
+            'matches': matches,
+            'false_positives': false_pos,
+            'missed': missed,
+            'calibration_duration': time.time() - self.start_time
+        }
+        
+        logger.info("🎯 Calibration Results:")
+        logger.info(f"  Optimal Sensitivity: {results['optimal_sensitivity']:.3f}")
+        logger.info(f"  Precision: {precision:.1%} (accuracy of detections)")
+        logger.info(f"  Recall: {recall:.1%} (% of barks caught)")
+        logger.info(f"  F1 Score: {f1_score:.3f} (overall performance)")
+        
+        return results
+
+
 class AdvancedBarkDetector:
     """Advanced bark detector using YAMNet with comprehensive analysis."""
     
@@ -69,7 +329,8 @@ class AdvancedBarkDetector:
                  channels: int = 1,
                  quiet_duration: float = 30.0,
                  session_gap_threshold: float = 10.0,
-                 output_dir: str = "recordings"):
+                 output_dir: str = "recordings",
+                 profile_name: str = None):
         """Initialize the advanced bark detector."""
         self.sensitivity = sensitivity
         self.sample_rate = sample_rate
@@ -78,6 +339,11 @@ class AdvancedBarkDetector:
         self.quiet_duration = quiet_duration
         self.session_gap_threshold = session_gap_threshold
         self.output_dir = output_dir
+        self.profile_name = profile_name
+        
+        # Calibration mode
+        self.calibration_mode = None
+        self.is_calibrating = False
         
         # YAMNet model components
         self.yamnet_model = None
@@ -528,6 +794,10 @@ class AdvancedBarkDetector:
                            f"Intensity: {event.intensity:.3f}, "
                            f"Duration: {event.end_time - event.start_time:.2f}s")
                 
+                # Record detection in calibration mode
+                if self.is_calibrating and self.calibration_mode:
+                    self.calibration_mode.record_system_detection(event)
+                
                 if not self.is_recording:
                     logger.info("Starting recording session...")
                     self.is_recording = True
@@ -641,26 +911,235 @@ class AdvancedBarkDetector:
             logger.info("Received interrupt signal...")
         finally:
             self.stop()
+    
+    def start_calibration(self, duration_minutes: int = 10) -> CalibrationProfile:
+        """Start real-time calibration mode."""
+        self.calibration_mode = CalibrationMode(self, duration_minutes)
+        self.is_calibrating = True
+        
+        # Start detector in background
+        self.start()
+        
+        try:
+            # Run calibration
+            results = self.calibration_mode.start_calibration()
+            
+            if results:
+                # Create calibration profile
+                profile = CalibrationProfile(
+                    name=self.profile_name or f"profile_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                    sensitivity=results['optimal_sensitivity'],
+                    min_bark_duration=0.3,  # Default for now
+                    session_gap_threshold=self.session_gap_threshold,
+                    background_noise_level=0.0,  # TODO: calculate from calibration
+                    created_date=datetime.now().isoformat(),
+                    location="Kelowna",
+                    notes=f"F1: {results['f1_score']:.3f}, Precision: {results['precision']:.1%}, Recall: {results['recall']:.1%}"
+                )
+                
+                return profile
+            else:
+                logger.info("Calibration cancelled")
+                return None
+                
+        finally:
+            self.is_calibrating = False
+            self.calibration_mode = None
+            self.stop()
+    
+    def save_profile(self, profile: CalibrationProfile):
+        """Save calibration profile to file."""
+        profiles_dir = Path.home() / '.bark_detector' / 'profiles'
+        profiles_dir.mkdir(parents=True, exist_ok=True)
+        
+        profile_path = profiles_dir / f"{profile.name}.json"
+        profile.save(profile_path)
+        
+        logger.info(f"💾 Profile saved: {profile_path}")
+        return profile_path
+    
+    def load_profile(self, profile_name: str) -> CalibrationProfile:
+        """Load calibration profile from file."""
+        profiles_dir = Path.home() / '.bark_detector' / 'profiles'
+        profile_path = profiles_dir / f"{profile_name}.json"
+        
+        if not profile_path.exists():
+            raise FileNotFoundError(f"Profile not found: {profile_path}")
+        
+        profile = CalibrationProfile.load(profile_path)
+        
+        # Apply profile settings
+        self.sensitivity = profile.sensitivity
+        self.session_gap_threshold = profile.session_gap_threshold
+        
+        logger.info(f"📂 Profile loaded: {profile.name}")
+        logger.info(f"  Sensitivity: {profile.sensitivity}")
+        logger.info(f"  Notes: {profile.notes}")
+        
+        return profile
+    
+    def list_profiles(self) -> List[str]:
+        """List available calibration profiles."""
+        profiles_dir = Path.home() / '.bark_detector' / 'profiles'
+        
+        if not profiles_dir.exists():
+            return []
+        
+        profiles = []
+        for profile_file in profiles_dir.glob("*.json"):
+            try:
+                profile = CalibrationProfile.load(profile_file)
+                profiles.append({
+                    'name': profile.name,
+                    'created': profile.created_date,
+                    'sensitivity': profile.sensitivity,
+                    'notes': profile.notes
+                })
+            except Exception as e:
+                logger.warning(f"Could not load profile {profile_file}: {e}")
+        
+        return profiles
+
+
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Advanced YAMNet Bark Detector v3.0",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  uv run bd.py                           # Normal detection mode
+  uv run bd.py --calibrate               # 10-minute calibration
+  uv run bd.py --calibrate --duration 5  # 5-minute calibration
+  uv run bd.py --profile kelowna_dogs    # Use saved profile
+  uv run bd.py --list-profiles           # Show available profiles
+        """
+    )
+    
+    # Main modes
+    parser.add_argument(
+        '--calibrate', 
+        action='store_true',
+        help='Start real-time calibration mode'
+    )
+    
+    parser.add_argument(
+        '--duration', 
+        type=int, 
+        default=10,
+        help='Calibration duration in minutes (default: 10)'
+    )
+    
+    # Profile management
+    parser.add_argument(
+        '--profile', 
+        type=str,
+        help='Load calibration profile by name'
+    )
+    
+    parser.add_argument(
+        '--save-profile', 
+        type=str,
+        help='Save calibration as profile with given name'
+    )
+    
+    parser.add_argument(
+        '--list-profiles', 
+        action='store_true',
+        help='List available calibration profiles'
+    )
+    
+    # Detection parameters
+    parser.add_argument(
+        '--sensitivity', 
+        type=float, 
+        default=0.05,
+        help='Detection sensitivity (0.01-0.5, default: 0.05)'
+    )
+    
+    parser.add_argument(
+        '--output-dir', 
+        type=str, 
+        default='recordings',
+        help='Output directory for recordings (default: recordings)'
+    )
+    
+    return parser.parse_args()
 
 
 def main():
-    """Main function."""
+    """Main function with command line support."""
+    args = parse_arguments()
+    
+    logger.info("=" * 70)
+    logger.info("Advanced YAMNet Bark Detector v3.0")
+    logger.info("ML-based Detection with Legal Evidence Collection")
+    logger.info("=" * 70)
+    
+    # Initialize detector
     config = {
-        'sensitivity': 0.05,           # Lower threshold for better detection
+        'sensitivity': args.sensitivity,
         'sample_rate': 16000,          # YAMNet requirement
         'chunk_size': 1024,
         'channels': 1,
         'quiet_duration': 30.0,
-        'session_gap_threshold': 10.0,  # Group barks within 10 seconds
-        'output_dir': 'recordings'
+        'session_gap_threshold': 10.0,  # Recording sessions
+        'output_dir': args.output_dir,
+        'profile_name': args.save_profile
     }
     
-    logger.info("=" * 70)
-    logger.info("Advanced YAMNet Bark Detector v3.0")
-    logger.info("ML-based Detection with Comprehensive Analysis")
-    logger.info("=" * 70)
-    
     detector = AdvancedBarkDetector(**config)
+    
+    # Handle different modes
+    if args.list_profiles:
+        profiles = detector.list_profiles()
+        if profiles:
+            logger.info("📂 Available Calibration Profiles:")
+            for profile in profiles:
+                logger.info(f"  {profile['name']} - Sensitivity: {profile['sensitivity']:.3f}")
+                logger.info(f"    Created: {profile['created'][:10]} - {profile['notes']}")
+        else:
+            logger.info("No calibration profiles found")
+        return
+    
+    # Load profile if specified
+    if args.profile:
+        try:
+            detector.load_profile(args.profile)
+        except FileNotFoundError:
+            logger.error(f"Profile '{args.profile}' not found")
+            profiles = detector.list_profiles()
+            if profiles:
+                logger.info("Available profiles:")
+                for profile in profiles:
+                    logger.info(f"  {profile['name']}")
+            return
+    
+    # Run calibration mode
+    if args.calibrate:
+        logger.info(f"🎯 Starting {args.duration}-minute calibration session")
+        logger.info("Make sure dogs are likely to bark during this time!")
+        
+        profile = detector.start_calibration(args.duration)
+        
+        if profile:
+            # Save profile if name provided
+            if args.save_profile:
+                detector.save_profile(profile)
+                logger.info(f"✅ Calibration complete! Profile '{args.save_profile}' saved.")
+                logger.info(f"   To use: uv run bd.py --profile {args.save_profile}")
+            else:
+                logger.info("✅ Calibration complete! Use --save-profile to save settings.")
+        
+        return
+    
+    # Normal detection mode
+    logger.info("🐕 Starting bark detection...")
+    if args.profile:
+        logger.info(f"📂 Using profile: {args.profile}")
+    logger.info(f"🎛️ Sensitivity: {detector.sensitivity:.3f}")
+    logger.info("Press Ctrl+C to stop")
+    
     detector.run()
 
 
