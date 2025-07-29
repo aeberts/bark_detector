@@ -1724,7 +1724,6 @@ def main():
         return
     
     if args.list_convertible:
-        from pathlib import Path
         calibrator = FileBasedCalibration(detector)
         directory = Path(args.list_convertible).expanduser()
         

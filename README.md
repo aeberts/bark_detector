@@ -59,7 +59,6 @@ Run the bark detector:
 ```bash
 uv run bd.py
 ```
-
 The detector will:
 - Load YAMNet ML model on first run
 - Monitor audio input in real-time
@@ -97,14 +96,86 @@ Default settings in `bd.py`:
 
 ## Calibration
 
-Example:
+Quick Example:
 
 uv run bd.py --calibrate-files \
-   --audio-files recordings/bark_sample1.wav samples/bark_sample2.wav samples/background.wav \
+   --audio-files samples/bark_sample1.wav samples/bark_sample2.wav samples/background.wav \
    --ground-truth-files bark_sample1_gt.json bark_sample2_gt.json \
    --save-profile kelowna_legal_evidence \
    --sensitivity-range 0.01 0.2 \
    --steps 25
+
+### Complete Calibration Example
+
+Step 1: Create Ground Truth Templates
+
+# Create templates for your existing bark recordings
+uv run bd.py --create-template samples/bark_recording_20250729_142441.wav
+
+This creates a JSON template:
+{
+"audio_file": "samples/bark_recording_20250729_142441.wav",
+"duration": 45.2,
+"instructions": "Add bark events with start_time and end_time in seconds",
+"events": [
+{
+   "start_time": 5.0,
+   "end_time": 7.5,
+   "description": "Example: Dog barking - replace with actual timestamps",
+   "confidence_expected": 1.0
+}
+]
+}
+
+Step 2: Annotate Ground Truth
+
+Edit the JSON file with actual bark timestamps:
+{
+"events": [
+{
+   "start_time": 12.3,
+   "end_time": 14.8,
+   "description": "First bark session - loud barking"
+},
+{
+   "start_time": 28.5,
+   "end_time": 31.2,
+   "description": "Second bark session - continuous"
+},
+{
+   "start_time": 41.0,
+   "end_time": 43.5,
+   "description": "Final bark - medium intensity"
+}
+]
+}
+
+Step 3: Run File-Based Calibration
+
+# Test with multiple files + ground truth
+uv run bd.py --calibrate-files \
+--audio-files bark1.wav bark2.wav background_noise.wav \
+--ground-truth-files bark1_gt.json bark2_gt.json \
+--save-profile kelowna_optimized \
+--sensitivity-range 0.01 0.3 \
+--steps 30
+
+🔬 What Happens During Calibration:
+
+🔍 Running sensitivity sweep: 0.010 to 0.300
+📊 Testing 3 files with 30 sensitivity levels
+📁 Added test file: bark1.wav (3 ground truth events)
+📁 Added test file: bark2.wav (5 ground truth events)
+📁 Added test file: background_noise.wav (0 ground truth events)
+
+🎛️ Testing sensitivity 0.010 (1/30)
+Precision: 45%, Recall: 95%, F1: 0.612
+🎛️ Testing sensitivity 0.020 (2/30)
+Precision: 67%, Recall: 89%, F1: 0.766
+...
+🎛️ Testing sensitivity 0.087 (15/30)
+Precision: 89%, Recall: 85%, F1: 0.870  ← Best F1 Score
+...
 
 ## Usage Examples
 

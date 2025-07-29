@@ -53,5 +53,6 @@ nox/
 runtime_files/
 *.pid
 
-# Recordings
+# Recordings and Samples
 recordings/
+samples/
