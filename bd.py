@@ -4,6 +4,10 @@ Bark Detector - Advanced YAMNet ML-based bark detection system
 Monitors audio input and records when barking is detected using machine learning
 """
 
+# Suppress TensorFlow info/debug messages
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=no INFO, 2=no INFO/WARNING, 3=no INFO/WARNING/ERROR
+
 import pyaudio
 import numpy as np
 import wave
