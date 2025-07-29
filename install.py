@@ -14,14 +14,24 @@ def get_platform_info():
     """Get platform information."""
     system = platform.system()
     machine = platform.machine()
-    return system, machine
+    python_version = platform.python_version()
+    return system, machine, python_version
 
 
 def install_requirements():
     """Install requirements based on platform."""
-    system, machine = get_platform_info()
+    system, machine, python_version = get_platform_info()
     
     print(f"Detected platform: {system}-{machine}")
+    print(f"Python version: {python_version}")
+    
+    # Check Python version compatibility
+    major, minor = map(int, python_version.split('.')[:2])
+    if major < 3 or (major == 3 and minor < 9):
+        print(f"❌ Error: Python {python_version} is not supported. Please use Python 3.9-3.11")
+        return False
+    elif major == 3 and minor >= 12:
+        print(f"⚠️  Warning: Python {python_version} may have compatibility issues. Python 3.9-3.11 is recommended.")
     
     # Determine which requirements file to use
     if system == "Darwin" and machine == "arm64":
@@ -51,9 +61,27 @@ def install_requirements():
         return True
         
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error installing dependencies: {e}")
-        print(f"stdout: {e.stdout}")
+        print(f"❌ Primary installation failed: {e}")
         print(f"stderr: {e.stderr}")
+        
+        # Try fallback requirements
+        fallback_file = "requirements-fallback.txt"
+        if os.path.exists(fallback_file):
+            print(f"\n🔄 Trying fallback installation with {fallback_file}...")
+            try:
+                result = subprocess.run([
+                    "uv", "add", "-r", fallback_file
+                ], check=True, capture_output=True, text=True)
+                
+                print("✅ Fallback installation successful!")
+                print("\nTo run the bark detector:")
+                print("  uv run bd.py")
+                return True
+                
+            except subprocess.CalledProcessError as e2:
+                print(f"❌ Fallback installation also failed: {e2}")
+                print(f"stderr: {e2.stderr}")
+        
         return False
     except FileNotFoundError:
         print("❌ Error: 'uv' not found. Please install uv first:")
