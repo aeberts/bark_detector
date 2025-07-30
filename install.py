@@ -18,6 +18,23 @@ def get_platform_info():
     return system, machine, python_version
 
 
+def create_pyproject_toml():
+    """Create a minimal pyproject.toml file."""
+    pyproject_content = """[project]
+name = "bark_detector"
+version = "3.0.0"
+description = "Advanced YAMNet-based bark detection system"
+requires-python = ">=3.9,<3.12"
+
+# Dependencies managed by install.py
+dependencies = []
+"""
+    
+    with open("pyproject.toml", "w") as f:
+        f.write(pyproject_content)
+    print("📝 Created pyproject.toml")
+
+
 def install_requirements():
     """Install requirements based on platform."""
     system, machine, python_version = get_platform_info()
@@ -32,6 +49,10 @@ def install_requirements():
         return False
     elif major == 3 and minor >= 12:
         print(f"⚠️  Warning: Python {python_version} may have compatibility issues. Python 3.9-3.11 is recommended.")
+    
+    # Create pyproject.toml if it doesn't exist
+    if not os.path.exists("pyproject.toml"):
+        create_pyproject_toml()
     
     # Determine which requirements file to use
     if system == "Darwin" and machine == "arm64":

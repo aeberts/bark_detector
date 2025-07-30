@@ -20,6 +20,8 @@ The `install.py` script automatically detects your platform and installs the cor
 python3 install.py
 ```
 
+**Note**: The script creates a platform-specific `pyproject.toml` file that is not tracked in git to prevent conflicts between different architectures.
+
 ### Manual Installation
 
 #### Apple Silicon Mac (M1/M2)

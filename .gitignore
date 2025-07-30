@@ -57,7 +57,6 @@ runtime_files/
 recordings/
 samples/
 
-# UV/Python environment files
-pyproject.toml
+# UV files (platform-specific)
 uv.lock
-.venv/
+pyproject.toml
