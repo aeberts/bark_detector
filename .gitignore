@@ -56,3 +56,8 @@ runtime_files/
 # Recordings and Samples
 recordings/
 samples/
+
+# UV/Python environment files
+pyproject.toml
+uv.lock
+.venv/
