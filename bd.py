@@ -1574,9 +1574,11 @@ Examples:
                --ground-truth-files bark1_gt.json bark2_gt.json \\
                --save-profile kelowna_optimized
   
-  # Calibration without ground truth (test for false positives)
-  uv run bd.py --calibrate-files --audio-files background_noise.wav \\
-               --save-profile noise_test
+  # Mixed calibration (positive + negative files)
+  uv run bd.py --calibrate-files \\
+               --audio-files bark1.wav bark2.wav background.wav traffic.wav \\
+               --ground-truth-files bark1_gt.json bark2_gt.json \\
+               --save-profile mixed_calibration
   
   # Profile management
   uv run bd.py --list-profiles                   # Show available profiles
@@ -1646,7 +1648,7 @@ Examples:
     parser.add_argument(
         '--ground-truth-files', 
         nargs='+',
-        help='Ground truth JSON files (optional, same order as audio files)'
+        help='Ground truth JSON files (optional, can be fewer than audio files for background/negative samples)'
     )
     
     parser.add_argument(
@@ -1839,8 +1841,8 @@ def main():
         ground_truth_paths = []
         
         if args.ground_truth_files:
-            if len(args.ground_truth_files) != len(args.audio_files):
-                logger.error("Number of ground truth files must match number of audio files")
+            if len(args.ground_truth_files) > len(args.audio_files):
+                logger.error("Cannot have more ground truth files than audio files")
                 return
             ground_truth_paths = [Path(f) for f in args.ground_truth_files]
         

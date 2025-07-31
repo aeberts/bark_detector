@@ -60,3 +60,6 @@ samples/
 # UV files (platform-specific)
 uv.lock
 pyproject.toml
+
+# Scratch Files
+scratch/
