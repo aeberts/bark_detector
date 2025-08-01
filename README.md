@@ -17,7 +17,8 @@ Advanced YAMNet-based bark detection system with real-time monitoring and compre
 The `install.py` script automatically detects your platform and installs the correct dependencies:
 
 ```bash
-python3 install.py
+uv venv
+uv run install.py
 ```
 
 **Note**: The script creates a platform-specific `pyproject.toml` file that is not tracked in git to prevent conflicts between different architectures.
