@@ -2,6 +2,17 @@
 
 ## Bugs
 - [x] Bug: # YAMNet Error when starting the project.
+- [x] Bug: # Error saving violations database.
+
+### Current Improvements & Enhancements
+- [x] Improvement: Avoid flooding console with multiple bark detections per real-world bark.
+- [ ] Improvement: Allow manual conversion of audio files from the command line
+- [ ] Improvement: Optimize YAMNet performance for longer monitoring periods
+- [ ] Improvement: Enhanced visualization for detection events and sessions
+- [ ] Improvement: Add audio quality metrics and validation
+- [ ] Improvement: Implement batch processing for large audio file collections
+- [ ] Improvement: Add configurable detection thresholds per dog breed/size
+- [ ] Improvement: Create web-based interface for remote monitoring
 
 ## Work-in-Progress and Planned Tasks
 
@@ -29,18 +40,9 @@
 - [ ] Feature: Auto-start monitoring at specified times with saved profiles
 - [ ] Feature: Build persistent monitoring for multi-day evidence collection
 
-### Improvements & Enhancements
-- [x] Improvement: Avoid flooding console with multiple bark detections per real-world bark.
-- [ ] Improvement: Optimize YAMNet performance for longer monitoring periods
-- [ ] Improvement: Enhanced visualization for detection events and sessions
-- [ ] Improvement: Add audio quality metrics and validation
-- [ ] Improvement: Implement batch processing for large audio file collections
-- [ ] Improvement: Add configurable detection thresholds per dog breed/size
-- [ ] Improvement: Create web-based interface for remote monitoring
-
 ### Technical Debt & Maintenance
-- [ ] Task: Add comprehensive unit tests for calibration system
 - [x] Task: Implement error handling for TensorFlow model loading failures
+- [ ] Task: Add comprehensive unit tests for calibration system
 - [ ] Task: Add logging configuration management
 - [ ] Task: Create automated deployment scripts for different platforms
 - [ ] Task: Add performance monitoring and metrics collection

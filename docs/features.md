@@ -52,7 +52,9 @@
 ### User Requirements
 - Process existing audio recordings (Voice Memos, M4A files)
 - Support common audio formats for calibration
-- Maintain audio quality during conversion
+- Maintain audio quality during conversion.
+- [NEW] Manually trigger audio file conversion from command line 
+    - E.g. `uv run bd.py --convert-all 2025-08-03` converts all audio files labeled 2025-08-03 to YAMNet compatible format leaving originals.
 ### Specifications
 - Support for M4A, MP3, and other common audio formats
 - Automatic conversion to 16kHz WAV for YAMNet processing

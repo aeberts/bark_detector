@@ -1,4 +1,19 @@
-# ERROR Saving violations database.
+# ERROR Saving violations database (RESOLVED)
+
+## Resolution
+
+**Root Cause**: NumPy float32 data types from YAMNet model predictions cannot be directly serialized to JSON.
+
+**Solution**: Added `convert_numpy_types()` utility function to convert NumPy data types to native Python types before JSON serialization.
+
+**Files Modified**:
+- Added `convert_numpy_types()` function to handle NumPy type conversion
+- Updated `ViolationDatabase.save_violations()` method to convert types before serialization  
+- Updated `LegalViolationTracker._create_violation_report()` to ensure native Python types
+
+**Status**: ✅ Bug fixed - violations database now saves successfully without JSON serialization errors.
+
+## Original Error Output:
 
 (bark_detector) ➜  bark_detector git:(main) ✗ uv run bd.py --analyze-violations 2025-08-02
 /Users/zand/dev/bark_detector/.venv/lib/python3.11/site-packages/tensorflow_hub/__init__.py:61: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.

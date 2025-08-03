@@ -43,6 +43,39 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def convert_numpy_types(obj):
+    """
+    Recursively convert NumPy data types to native Python types for JSON serialization.
+    
+    Args:
+        obj: Object that may contain NumPy types
+        
+    Returns:
+        Object with NumPy types converted to native Python types
+    """
+    import numpy as np
+    
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        # Handle NaN and infinity
+        if np.isnan(obj):
+            return None
+        elif np.isinf(obj):
+            return None
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return [convert_numpy_types(item) for item in obj.tolist()]
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_types(item) for item in obj)
+    else:
+        return obj
+
+
 @dataclass
 class BarkEvent:
     """Represents a detected barking event."""
@@ -166,12 +199,12 @@ class ViolationDatabase:
                         'start_time': v.start_time,
                         'end_time': v.end_time,
                         'violation_type': v.violation_type,
-                        'total_bark_duration': v.total_bark_duration,
-                        'total_incident_duration': v.total_incident_duration,
+                        'total_bark_duration': convert_numpy_types(v.total_bark_duration),
+                        'total_incident_duration': convert_numpy_types(v.total_incident_duration),
                         'audio_files': v.audio_files,
-                        'confidence_scores': v.confidence_scores,
-                        'peak_confidence': v.peak_confidence,
-                        'avg_confidence': v.avg_confidence,
+                        'confidence_scores': convert_numpy_types(v.confidence_scores),
+                        'peak_confidence': convert_numpy_types(v.peak_confidence),
+                        'avg_confidence': convert_numpy_types(v.avg_confidence),
                         'created_timestamp': v.created_timestamp
                     }
                     for v in self.violations
@@ -444,12 +477,12 @@ class LegalViolationTracker:
             start_time=start_time_str,
             end_time=end_time_str,
             violation_type=violation_type,
-            total_bark_duration=total_bark_duration,
-            total_incident_duration=total_incident_duration,
+            total_bark_duration=convert_numpy_types(total_bark_duration),
+            total_incident_duration=convert_numpy_types(total_incident_duration),
             audio_files=audio_files,
-            confidence_scores=all_confidences,
-            peak_confidence=peak_confidence,
-            avg_confidence=avg_confidence,
+            confidence_scores=convert_numpy_types(all_confidences),
+            peak_confidence=convert_numpy_types(peak_confidence),
+            avg_confidence=convert_numpy_types(avg_confidence),
             created_timestamp=datetime.now().isoformat()
         )
     
