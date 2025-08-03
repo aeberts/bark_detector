@@ -1,8 +1,9 @@
 # Backlog
 
 ## Bugs
-- [x] Bug: # YAMNet Error when starting the project.
-- [x] Bug: # Error saving violations database.
+- [x] Bug: YAMNet Error when starting the project.
+- [x] Bug: Error saving violations database.
+- [x] BUG: Reports created with --export-violations contain incorrect references to audio files.
 
 ### Current Improvements & Enhancements
 - [x] Improvement: Avoid flooding console with multiple bark detections per real-world bark.

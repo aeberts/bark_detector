@@ -97,6 +97,8 @@ class BarkingSession:
     peak_confidence: float
     barks_per_second: float
     intensity: float = 0.0
+    source_file: Optional[Path] = None
+    file_start_timestamp: Optional[float] = None
 
 
 @dataclass
@@ -155,6 +157,8 @@ class ViolationReport:
     total_bark_duration: float  # Total barking time in seconds
     total_incident_duration: float  # Total incident time in seconds
     audio_files: List[str]  # List of associated recording files
+    audio_file_start_times: List[str]  # Start times relative to each audio file (HH:MM:SS)
+    audio_file_end_times: List[str]  # End times relative to each audio file (HH:MM:SS)
     confidence_scores: List[float]  # Confidence scores from detections
     peak_confidence: float
     avg_confidence: float
@@ -179,10 +183,15 @@ class ViolationDatabase:
             if self.db_path.exists():
                 with open(self.db_path, 'r') as f:
                     data = json.load(f)
-                    self.violations = [
-                        ViolationReport(**violation_data) 
-                        for violation_data in data.get('violations', [])
-                    ]
+                    self.violations = []
+                    for violation_data in data.get('violations', []):
+                        # Add backward compatibility for records without new timestamp fields
+                        if 'audio_file_start_times' not in violation_data:
+                            violation_data['audio_file_start_times'] = ["00:00:00"] * len(violation_data.get('audio_files', []))
+                        if 'audio_file_end_times' not in violation_data:
+                            violation_data['audio_file_end_times'] = ["00:00:00"] * len(violation_data.get('audio_files', []))
+                        
+                        self.violations.append(ViolationReport(**violation_data))
         except Exception as e:
             logger.warning(f"Could not load violation database: {e}")
             self.violations = []
@@ -202,6 +211,8 @@ class ViolationDatabase:
                         'total_bark_duration': convert_numpy_types(v.total_bark_duration),
                         'total_incident_duration': convert_numpy_types(v.total_incident_duration),
                         'audio_files': v.audio_files,
+                        'audio_file_start_times': v.audio_file_start_times,
+                        'audio_file_end_times': v.audio_file_end_times,
                         'confidence_scores': convert_numpy_types(v.confidence_scores),
                         'peak_confidence': convert_numpy_types(v.peak_confidence),
                         'avg_confidence': convert_numpy_types(v.avg_confidence),
@@ -241,7 +252,8 @@ class ViolationDatabase:
             fieldnames = [
                 'Date', 'Start Time', 'End Time', 'Violation Type',
                 'Total Bark Duration (min)', 'Total Incident Duration (min)',
-                'Audio Files', 'Peak Confidence', 'Avg Confidence'
+                'Audio Files', 'Audio File Start Times (Relative)', 'Audio File End Times (Relative)',
+                'Peak Confidence', 'Avg Confidence'
             ]
             
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -256,6 +268,8 @@ class ViolationDatabase:
                     'Total Bark Duration (min)': f"{v.total_bark_duration / 60:.1f}",
                     'Total Incident Duration (min)': f"{v.total_incident_duration / 60:.1f}",
                     'Audio Files': '; '.join(v.audio_files),
+                    'Audio File Start Times (Relative)': '; '.join(v.audio_file_start_times),
+                    'Audio File End Times (Relative)': '; '.join(v.audio_file_end_times),
                     'Peak Confidence': f"{v.peak_confidence:.3f}",
                     'Avg Confidence': f"{v.avg_confidence:.3f}"
                 })
@@ -469,8 +483,53 @@ class LegalViolationTracker:
         start_time_str = start_dt.strftime("%I:%M %p").lstrip('0')
         end_time_str = end_dt.strftime("%I:%M %p").lstrip('0')
         
-        # Generate audio file references (placeholder - would need actual file mapping)
-        audio_files = [f"bark_recording_{start_dt.strftime('%Y%m%d_%H%M%S')}.wav"]
+        # Collect actual audio files and calculate relative timestamps
+        audio_files = []
+        audio_file_start_times = []
+        audio_file_end_times = []
+        
+        # Group sessions by source file
+        files_sessions = {}
+        for session in sessions:
+            if session.source_file and session.file_start_timestamp is not None:
+                file_path = session.source_file.name
+                if file_path not in files_sessions:
+                    files_sessions[file_path] = {
+                        'file_start_timestamp': session.file_start_timestamp,
+                        'sessions': []
+                    }
+                files_sessions[file_path]['sessions'].append(session)
+        
+        # Calculate relative timestamps for each file
+        for file_path, file_data in files_sessions.items():
+            audio_files.append(file_path)
+            
+            # Find earliest and latest times in this file
+            file_sessions = file_data['sessions']
+            file_start_timestamp = file_data['file_start_timestamp']
+            
+            earliest_session_start = min(s.start_time for s in file_sessions)
+            latest_session_end = max(s.end_time for s in file_sessions)
+            
+            # Calculate relative times within the audio file
+            relative_start = earliest_session_start - file_start_timestamp
+            relative_end = latest_session_end - file_start_timestamp
+            
+            # Format as HH:MM:SS
+            def format_relative_time(seconds):
+                hours = int(seconds // 3600)
+                minutes = int((seconds % 3600) // 60)
+                secs = int(seconds % 60)
+                return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+            
+            audio_file_start_times.append(format_relative_time(max(0, relative_start)))
+            audio_file_end_times.append(format_relative_time(max(0, relative_end)))
+        
+        # Fallback if no source files found (shouldn't happen with proper implementation)
+        if not audio_files:
+            audio_files = [f"bark_recording_{start_dt.strftime('%Y%m%d_%H%M%S')}.wav"]
+            audio_file_start_times = ["00:00:00"]
+            audio_file_end_times = ["00:00:00"]
         
         return ViolationReport(
             date=report_date,
@@ -480,6 +539,8 @@ class LegalViolationTracker:
             total_bark_duration=convert_numpy_types(total_bark_duration),
             total_incident_duration=convert_numpy_types(total_incident_duration),
             audio_files=audio_files,
+            audio_file_start_times=audio_file_start_times,
+            audio_file_end_times=audio_file_end_times,
             confidence_scores=convert_numpy_types(all_confidences),
             peak_confidence=convert_numpy_types(peak_confidence),
             avg_confidence=convert_numpy_types(avg_confidence),
@@ -629,6 +690,11 @@ class RecordingFileParser:
             
             # Group events into barking sessions
             sessions = self.detector._group_events_into_sessions(bark_events)
+            
+            # Set source file and file start timestamp for each session
+            for session in sessions:
+                session.source_file = recording_path
+                session.file_start_timestamp = file_timestamp
             
             logger.info(f"Found {len(bark_events)} bark events in {len(sessions)} sessions from {recording_path.name}")
             

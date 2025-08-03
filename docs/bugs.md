@@ -1,3 +1,16 @@
+# BUG: Reports created with --export-violations contain incorrect references to audio files. (RESOLVED)
+
+Details: Reports created with --export-violations contain incorrect references to audio files.
+
+Repro steps:
+- generate analysis with `uv run bd.py --violation-report 2025-08-03 2025-08-03`
+- generate csv file with `uv run bd.py --export-violations woofy-world-2025-08-03.csv`
+
+Result: 
+- The csv file refers to files that don't exist in the recordings folder.
+- Example from `woofy-world-2025-08-03-B.csv`:
+    - row 2 and row 3 refer to audio file `bark_recording_20250803_093711.wav` that does not exist in the recordings folder.
+
 # ERROR Saving violations database (RESOLVED)
 
 ## Resolution
