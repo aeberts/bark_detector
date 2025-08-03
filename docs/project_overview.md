@@ -116,3 +116,7 @@ Result: ONE sporadic violation (15 minutes total barking in first session)
 - **Installation**: Intelligent installer (`install.py`) with automatic platform detection and TensorFlow optimization
 - **Development Platform**: M1 based Mac Laptop
 - **Primary Target**: Intel-based Mac Laptop
+
+### Common Deployment Issues
+
+**YAMNet Model Cache Corruption**: If you encounter TensorFlow Hub model loading errors, clear the cache with `rm -rf /tmp/tfhub_modules` and restart the application to re-download the model.

@@ -20,7 +20,6 @@ The `install.py` script automatically detects your platform and installs the cor
 uv venv
 uv run install.py
 ```
-
 **Note**: The script creates a platform-specific `pyproject.toml` file that is not tracked in git to prevent conflicts between different architectures.
 
 ### Manual Installation
@@ -68,6 +67,12 @@ The detector will:
 - Log bark detections with confidence and intensity
 - Record audio sessions when barking is detected
 - Provide comprehensive analysis of recordings
+
+### Run with Calibration File
+
+```
+uv run bd.py 
+```
 
 ## Cross-Platform Deployment
 
