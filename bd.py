@@ -670,6 +670,277 @@ class RecordingFileParser:
         return all_sessions
 
 
+class AudioFileConverter:
+    """Standalone audio file converter for manual command-line conversion."""
+    
+    def __init__(self):
+        """Initialize audio file converter."""
+        self.supported_extensions = ['.m4a', '.mp3', '.aac', '.flac', '.wav']
+        self.target_sample_rate = 16000
+        self.target_channels = 1
+    
+    def get_files_for_date(self, directory: Path, target_date: str) -> List[Path]:
+        """
+        Get all convertible audio files for a specific date.
+        
+        Args:
+            directory: Directory to search
+            target_date: Date in YYYY-MM-DD format
+            
+        Returns:
+            List of audio files matching the date pattern
+        """
+        date_parts = target_date.split('-')
+        if len(date_parts) != 3:
+            raise ValueError(f"Invalid date format: {target_date}. Use YYYY-MM-DD")
+        
+        year, month, day = date_parts
+        date_pattern = f"{year}{month}{day}"
+        
+        convertible_files = []
+        
+        # Look for files matching: bark_recording_YYYYMMDD_*.[ext]
+        for ext in self.supported_extensions:
+            pattern = f"bark_recording_{date_pattern}_*{ext}"
+            for file_path in directory.glob(pattern):
+                convertible_files.append(file_path)
+        
+        # Also look for files that start with the date pattern
+        for ext in self.supported_extensions:
+            pattern = f"{date_pattern}*{ext}"
+            for file_path in directory.glob(pattern):
+                convertible_files.append(file_path)
+        
+        # Remove duplicates and sort
+        convertible_files = list(set(convertible_files))
+        convertible_files.sort()
+        
+        return convertible_files
+    
+    def get_convertible_files_in_directory(self, directory: Path) -> List[Path]:
+        """
+        Get all convertible audio files in a directory.
+        
+        Args:
+            directory: Directory to search
+            
+        Returns:
+            List of all convertible audio files
+        """
+        convertible_files = []
+        
+        for ext in self.supported_extensions:
+            pattern = f"*{ext}"
+            for file_path in directory.glob(pattern):
+                # Skip already converted files
+                if not file_path.name.endswith('_16khz.wav'):
+                    convertible_files.append(file_path)
+        
+        convertible_files.sort()
+        return convertible_files
+    
+    def is_already_converted(self, audio_path: Path) -> bool:
+        """Check if a file has already been converted."""
+        converted_dir = audio_path.parent / 'converted'
+        converted_name = f"{audio_path.stem}_16khz.wav"
+        converted_path = converted_dir / converted_name
+        
+        return converted_path.exists()
+    
+    def convert_audio_file(self, audio_path: Path) -> Optional[Path]:
+        """
+        Convert a single audio file to 16kHz WAV format.
+        
+        Args:
+            audio_path: Path to the audio file to convert
+            
+        Returns:
+            Path to converted file, or None if conversion failed
+        """
+        try:
+            import librosa
+            import soundfile as sf
+            
+            # Check if already converted
+            if self.is_already_converted(audio_path):
+                logger.info(f"⏭️  Skipping {audio_path.name} (already converted)")
+                converted_dir = audio_path.parent / 'converted'
+                converted_name = f"{audio_path.stem}_16khz.wav"
+                return converted_dir / converted_name
+            
+            # Create converted directory
+            converted_dir = audio_path.parent / 'converted'
+            converted_dir.mkdir(exist_ok=True)
+            
+            # Generate output path
+            converted_name = f"{audio_path.stem}_16khz.wav"
+            converted_path = converted_dir / converted_name
+            
+            logger.info(f"🔄 Converting {audio_path.name} to WAV 16kHz...")
+            
+            # Load and convert audio
+            audio_data, sample_rate = librosa.load(str(audio_path), sr=self.target_sample_rate, mono=True)
+            
+            # Save as WAV
+            sf.write(str(converted_path), audio_data, self.target_sample_rate, subtype='PCM_16')
+            
+            duration = len(audio_data) / self.target_sample_rate
+            file_size_mb = converted_path.stat().st_size / (1024 * 1024)
+            
+            logger.info(f"✅ Converted: {converted_path.name} ({duration:.1f}s, {file_size_mb:.1f}MB)")
+            
+            return converted_path
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to convert {audio_path.name}: {e}")
+            return None
+    
+    def convert_files_for_date(self, directory: Path, target_date: str) -> Dict[str, any]:
+        """
+        Convert all audio files for a specific date.
+        
+        Args:
+            directory: Directory containing audio files
+            target_date: Date in YYYY-MM-DD format
+            
+        Returns:
+            Dictionary with conversion results summary
+        """
+        logger.info(f"🔍 Finding audio files for date: {target_date}")
+        
+        files_to_convert = self.get_files_for_date(directory, target_date)
+        
+        if not files_to_convert:
+            logger.info(f"📁 No audio files found for date {target_date}")
+            return {
+                'total_files': 0,
+                'converted': 0,
+                'skipped': 0,
+                'failed': 0,
+                'converted_files': []
+            }
+        
+        logger.info(f"📁 Found {len(files_to_convert)} audio files for {target_date}")
+        
+        return self._convert_file_batch(files_to_convert)
+    
+    def convert_specific_files(self, file_paths: List[Path]) -> Dict[str, any]:
+        """
+        Convert specific audio files.
+        
+        Args:
+            file_paths: List of file paths to convert
+            
+        Returns:
+            Dictionary with conversion results summary
+        """
+        # Validate files exist and are convertible
+        valid_files = []
+        for file_path in file_paths:
+            if not file_path.exists():
+                logger.error(f"❌ File not found: {file_path}")
+                continue
+            
+            if file_path.suffix.lower() not in self.supported_extensions:
+                logger.error(f"❌ Unsupported format: {file_path} (supported: {', '.join(self.supported_extensions)})")
+                continue
+            
+            valid_files.append(file_path)
+        
+        if not valid_files:
+            logger.info("📁 No valid files to convert")
+            return {
+                'total_files': 0,
+                'converted': 0,
+                'skipped': 0,
+                'failed': 0,
+                'converted_files': []
+            }
+        
+        logger.info(f"📁 Converting {len(valid_files)} files")
+        return self._convert_file_batch(valid_files)
+    
+    def convert_directory(self, directory: Path) -> Dict[str, any]:
+        """
+        Convert all convertible audio files in a directory.
+        
+        Args:
+            directory: Directory to convert files from
+            
+        Returns:
+            Dictionary with conversion results summary
+        """
+        if not directory.exists():
+            logger.error(f"❌ Directory not found: {directory}")
+            return {
+                'total_files': 0,
+                'converted': 0,
+                'skipped': 0,
+                'failed': 0,
+                'converted_files': []
+            }
+        
+        logger.info(f"🔍 Finding convertible files in: {directory}")
+        
+        files_to_convert = self.get_convertible_files_in_directory(directory)
+        
+        if not files_to_convert:
+            logger.info(f"📁 No convertible audio files found in {directory}")
+            return {
+                'total_files': 0,
+                'converted': 0,
+                'skipped': 0,
+                'failed': 0,
+                'converted_files': []
+            }
+        
+        logger.info(f"📁 Found {len(files_to_convert)} convertible files")
+        return self._convert_file_batch(files_to_convert)
+    
+    def _convert_file_batch(self, file_paths: List[Path]) -> Dict[str, any]:
+        """
+        Convert a batch of files and return summary.
+        
+        Args:
+            file_paths: List of file paths to convert
+            
+        Returns:
+            Dictionary with conversion results
+        """
+        results = {
+            'total_files': len(file_paths),
+            'converted': 0,
+            'skipped': 0,
+            'failed': 0,
+            'converted_files': []
+        }
+        
+        for i, file_path in enumerate(file_paths, 1):
+            logger.info(f"📄 Processing file {i}/{len(file_paths)}: {file_path.name}")
+            
+            if self.is_already_converted(file_path):
+                results['skipped'] += 1
+                logger.info(f"⏭️  Skipped {file_path.name} (already converted)")
+                continue
+            
+            converted_path = self.convert_audio_file(file_path)
+            
+            if converted_path:
+                results['converted'] += 1
+                results['converted_files'].append(str(converted_path))
+            else:
+                results['failed'] += 1
+        
+        # Log summary
+        logger.info(f"🎯 Conversion Summary:")
+        logger.info(f"  📊 Total files: {results['total_files']}")
+        logger.info(f"  ✅ Converted: {results['converted']}")
+        logger.info(f"  ⏭️  Skipped (already converted): {results['skipped']}")
+        logger.info(f"  ❌ Failed: {results['failed']}")
+        
+        return results
+
+
 class FileBasedCalibration:
     """File-based calibration using ground truth timestamps."""
     
@@ -2272,6 +2543,11 @@ Examples:
   uv run bd.py --violation-report 2025-08-01 2025-08-05  # Generate report for date range
   uv run bd.py --list-violations                 # List all detected violations
   uv run bd.py --export-violations violations.csv  # Export violations to CSV
+  
+  # Audio conversion
+  uv run bd.py --convert-all 2025-08-03          # Convert all audio files for specific date
+  uv run bd.py --convert-files file1.m4a file2.mp3  # Convert specific files
+  uv run bd.py --convert-directory ~/Downloads   # Convert all files in directory
         """
     )
     
@@ -2350,6 +2626,25 @@ Examples:
         '--export-violations',
         type=str,
         help='Export violations to CSV file'
+    )
+    
+    # Audio conversion commands
+    parser.add_argument(
+        '--convert-all',
+        type=str,
+        help='Convert all audio files for specific date (YYYY-MM-DD format)'
+    )
+    
+    parser.add_argument(
+        '--convert-files',
+        nargs='+',
+        help='Convert specific audio files to WAV 16kHz format'
+    )
+    
+    parser.add_argument(
+        '--convert-directory',
+        type=str,
+        help='Convert all convertible audio files in specified directory'
     )
     
     # File-based calibration
@@ -2553,6 +2848,62 @@ def main():
             logger.info(f"✅ Violations exported successfully")
         except Exception as e:
             logger.error(f"❌ Error exporting violations: {e}")
+        return
+    
+    # Audio conversion commands
+    if args.convert_all:
+        target_date = args.convert_all
+        logger.info(f"🔄 Converting all audio files for date: {target_date}")
+        try:
+            converter = AudioFileConverter()
+            recordings_dir = Path(args.output_dir)
+            results = converter.convert_files_for_date(recordings_dir, target_date)
+            
+            if results['converted'] > 0:
+                logger.info(f"✅ Successfully converted {results['converted']} files")
+            elif results['total_files'] == 0:
+                logger.info(f"📁 No audio files found for date {target_date}")
+            else:
+                logger.info(f"ℹ️  All files already converted or failed")
+                
+        except Exception as e:
+            logger.error(f"❌ Error converting files: {e}")
+        return
+    
+    if args.convert_files:
+        file_paths = [Path(f) for f in args.convert_files]
+        logger.info(f"🔄 Converting {len(file_paths)} specific files")
+        try:
+            converter = AudioFileConverter()
+            results = converter.convert_specific_files(file_paths)
+            
+            if results['converted'] > 0:
+                logger.info(f"✅ Successfully converted {results['converted']} files")
+            elif results['total_files'] == 0:
+                logger.info(f"📁 No valid files to convert")
+            else:
+                logger.info(f"ℹ️  All files already converted or failed")
+                
+        except Exception as e:
+            logger.error(f"❌ Error converting files: {e}")
+        return
+    
+    if args.convert_directory:
+        directory = Path(args.convert_directory)
+        logger.info(f"🔄 Converting all audio files in directory: {directory}")
+        try:
+            converter = AudioFileConverter()
+            results = converter.convert_directory(directory)
+            
+            if results['converted'] > 0:
+                logger.info(f"✅ Successfully converted {results['converted']} files")
+            elif results['total_files'] == 0:
+                logger.info(f"📁 No convertible files found in {directory}")
+            else:
+                logger.info(f"ℹ️  All files already converted or failed")
+                
+        except Exception as e:
+            logger.error(f"❌ Error converting directory: {e}")
         return
     
     # Create ground truth template

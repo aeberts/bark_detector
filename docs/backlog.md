@@ -6,7 +6,7 @@
 
 ### Current Improvements & Enhancements
 - [x] Improvement: Avoid flooding console with multiple bark detections per real-world bark.
-- [ ] Improvement: Allow manual conversion of audio files from the command line
+- [x] Improvement: Allow manual conversion of audio files from the command line
 - [ ] Improvement: Optimize YAMNet performance for longer monitoring periods
 - [ ] Improvement: Enhanced visualization for detection events and sessions
 - [ ] Improvement: Add audio quality metrics and validation
