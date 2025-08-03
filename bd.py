@@ -741,15 +741,16 @@ class AudioFileConverter:
     
     def is_already_converted(self, audio_path: Path) -> bool:
         """Check if a file has already been converted."""
-        converted_dir = audio_path.parent / 'converted'
+        # Check if WAV file exists in base directory
         converted_name = f"{audio_path.stem}_16khz.wav"
-        converted_path = converted_dir / converted_name
+        converted_path = audio_path.parent / converted_name
         
         return converted_path.exists()
     
     def convert_audio_file(self, audio_path: Path) -> Optional[Path]:
         """
         Convert a single audio file to 16kHz WAV format.
+        Saves WAV in base directory and moves original to 'originals' subdirectory.
         
         Args:
             audio_path: Path to the audio file to convert
@@ -760,34 +761,39 @@ class AudioFileConverter:
         try:
             import librosa
             import soundfile as sf
+            import shutil
             
             # Check if already converted
             if self.is_already_converted(audio_path):
                 logger.info(f"⏭️  Skipping {audio_path.name} (already converted)")
-                converted_dir = audio_path.parent / 'converted'
                 converted_name = f"{audio_path.stem}_16khz.wav"
-                return converted_dir / converted_name
+                return audio_path.parent / converted_name
             
-            # Create converted directory
-            converted_dir = audio_path.parent / 'converted'
-            converted_dir.mkdir(exist_ok=True)
+            # Create originals directory
+            originals_dir = audio_path.parent / 'originals'
+            originals_dir.mkdir(exist_ok=True)
             
-            # Generate output path
+            # Generate output path in base directory
             converted_name = f"{audio_path.stem}_16khz.wav"
-            converted_path = converted_dir / converted_name
+            converted_path = audio_path.parent / converted_name
             
             logger.info(f"🔄 Converting {audio_path.name} to WAV 16kHz...")
             
             # Load and convert audio
             audio_data, sample_rate = librosa.load(str(audio_path), sr=self.target_sample_rate, mono=True)
             
-            # Save as WAV
+            # Save as WAV in base directory
             sf.write(str(converted_path), audio_data, self.target_sample_rate, subtype='PCM_16')
+            
+            # Move original to originals subdirectory
+            original_destination = originals_dir / audio_path.name
+            shutil.move(str(audio_path), str(original_destination))
             
             duration = len(audio_data) / self.target_sample_rate
             file_size_mb = converted_path.stat().st_size / (1024 * 1024)
             
             logger.info(f"✅ Converted: {converted_path.name} ({duration:.1f}s, {file_size_mb:.1f}MB)")
+            logger.info(f"📁 Moved original to: originals/{audio_path.name}")
             
             return converted_path
             
