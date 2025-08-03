@@ -81,6 +81,19 @@
 - Keyboard controls for manual recording and calibration
 - Progress indicators for model loading and calibration
 
+## FEATURE: Detection Deduplication System
+### User Requirements
+- Prevent console spam from multiple detections of the same real-world bark
+- Provide clean, readable detection output during monitoring
+- Maintain detection accuracy while reducing noise
+### Specifications
+- Implements detection cooldown logic to group nearby detections
+- Configurable cooldown duration (default: 2-3 seconds)
+- Groups overlapping/nearby detections into single reported events
+- Only logs console messages for genuine new bark incidents
+- Preserves all detection events for recording and calibration purposes
+- Maintains backward compatibility with existing detection behavior
+
 ## PLANNED FEATURE: Bylaw Violation Detection
 ### User Requirements
 - Automatically detect when barking meets City of Kelowna bylaw violation criteria

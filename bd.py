@@ -922,6 +922,12 @@ class AdvancedBarkDetector:
         self.analysis_buffer = []
         self.detection_buffer_duration = 1.0  # 1 second for analysis
         
+        # Detection deduplication system
+        self.recent_detections = []  # List of recent detection timestamps
+        self.last_reported_bark_time = 0.0  # Last time we reported a bark to console
+        self.detection_cooldown_duration = 2.5  # Seconds to wait before reporting another bark
+        self.max_recent_detections = 10  # Maximum number of recent detections to track
+        
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
         
@@ -1311,6 +1317,41 @@ class AdvancedBarkDetector:
             self.current_session_barks = []
             self.session_start_time = None
     
+    def _should_report_detection(self, current_time: float, event: BarkEvent) -> bool:
+        """
+        Determine if a bark detection should be reported to console.
+        Implements deduplication logic to prevent console spam from the same real-world bark.
+        
+        Args:
+            current_time: Current timestamp
+            event: The detected bark event
+            
+        Returns:
+            True if this detection should be reported, False if it's likely a duplicate
+        """
+        # Clean up old detections from tracking list
+        cutoff_time = current_time - self.detection_cooldown_duration * 2
+        self.recent_detections = [t for t in self.recent_detections if t > cutoff_time]
+        
+        # Check if we're still in cooldown period from last reported bark
+        if current_time - self.last_reported_bark_time < self.detection_cooldown_duration:
+            # Add to recent detections but don't report
+            self.recent_detections.append(current_time)
+            # Trim list size
+            if len(self.recent_detections) > self.max_recent_detections:
+                self.recent_detections = self.recent_detections[-self.max_recent_detections:]
+            return False
+        
+        # This is a new bark - should be reported
+        self.recent_detections.append(current_time)
+        self.last_reported_bark_time = current_time
+        
+        # Trim list size
+        if len(self.recent_detections) > self.max_recent_detections:
+            self.recent_detections = self.recent_detections[-self.max_recent_detections:]
+        
+        return True
+    
     def process_audio_chunk(self, audio_data: np.ndarray) -> None:
         """Process audio chunk with advanced bark detection."""
         current_time = time.time()
@@ -1342,17 +1383,23 @@ class AdvancedBarkDetector:
                 self.last_bark_time = current_time
                 bark_time = datetime.now()
                 
-                # Log bark detection
-                logger.info(f"🐕 BARK DETECTED! Confidence: {event.confidence:.3f}, "
-                           f"Intensity: {event.intensity:.3f}, "
-                           f"Duration: {event.end_time - event.start_time:.2f}s")
+                # Check if this detection should be reported (deduplication)
+                should_report = self._should_report_detection(current_time, event)
                 
-                # Record detection in calibration mode
+                # Log bark detection only if not a duplicate
+                if should_report:
+                    logger.info(f"🐕 BARK DETECTED! Confidence: {event.confidence:.3f}, "
+                               f"Intensity: {event.intensity:.3f}, "
+                               f"Duration: {event.end_time - event.start_time:.2f}s")
+                
+                # Always record detection in calibration mode (regardless of deduplication)
                 if self.is_calibrating and self.calibration_mode:
                     self.calibration_mode.record_system_detection(event)
                 
                 if not self.is_recording:
-                    logger.info("Starting recording session...")
+                    # Only log "Starting recording session" if we're reporting this detection
+                    if should_report:
+                        logger.info("Starting recording session...")
                     self.is_recording = True
                     self.recording_data = []
                     self.session_start_time = bark_time

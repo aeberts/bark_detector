@@ -30,7 +30,7 @@
 - [ ] Feature: Build persistent monitoring for multi-day evidence collection
 
 ### Improvements & Enhancements
-- [ ] Improvement: Avoid flooding console with multiple bark detections per real-world bark.
+- [x] Improvement: Avoid flooding console with multiple bark detections per real-world bark.
 - [ ] Improvement: Optimize YAMNet performance for longer monitoring periods
 - [ ] Improvement: Enhanced visualization for detection events and sessions
 - [ ] Improvement: Add audio quality metrics and validation
