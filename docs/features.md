@@ -98,12 +98,32 @@
 ### User Requirements
 - Automatically detect when barking meets City of Kelowna bylaw violation criteria
 - Flag incidents that can be used as legal evidence
+- Analyze all audio recordings in the recordings folder for a given day for potential violations
+- Create a violation report for each violation identified with the following information:
+    - Date of violation
+    - start time
+    - end time
+    - Type of violation: (Intermittent? (aka sporadic) / Constant (aka continual))
+    
+
 ### Specifications
 - **Status**: Not yet implemented in current codebase
-- Auto-flag 5-minute continuous barking violations
-- Auto-flag 15-minute sporadic barking violations within a legal session
-- Uses Gap Threshold Hierarchy rules defined in project_overview.md (5-minute legal gap threshold)
-- Will implement LegalViolationTracker class for violation detection
+- **Continuous/Constant Violation Detection**: 
+  - Detects individual BarkingSessions with total_duration ≥ 5 minutes (300 seconds)
+  - Detects sequences of BarkingSessions with gaps ≤30 seconds that together span ≥5 minutes
+  - Uses existing 10-second gap threshold (Recording Sessions) for detection
+  - Classification: Reports as "Constant" violation type
+- **Sporadic/Intermittent Violation Detection**: 
+  - Groups BarkingSessions into Legal Sporadic Sessions using 5-minute gap threshold
+  - Detects Legal Sporadic Sessions with ≥15 minutes (900 seconds) total barking duration  
+  - Uses Gap Threshold Hierarchy rules defined in project_overview.md
+  - Classification: Reports as "Intermittent" violation type
+- **Post-processing Analysis**: Analyze existing recordings in recordings/ folder by date to reconstruct violation timeline
+- **Real-time Detection**: Flag violations during live monitoring sessions
+- **Violation Database**: Track violations across multiple days for city evidence requirements (4+ instances over 3-5 days)
+- **RDCO Report Generation**: Generate reports with exact dates, times, durations, violation types, and associated audio file references
+- **Additional Report Fields**: Include total barking duration, list of associated audio recording files, and RDCO-compliant formatting
+- **Will implement enhanced LegalViolationTracker class for comprehensive violation detection and reporting**
 
 ## PLANNED FEATURE: Legal Evidence Collection
 ### User Requirements

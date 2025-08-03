@@ -100,6 +100,543 @@ class GroundTruthEvent:
     confidence_expected: float = 1.0
 
 
+@dataclass
+class LegalSporadicSession:
+    """Represents a legal sporadic session for bylaw violation detection."""
+    start_time: float
+    end_time: float
+    barking_sessions: List['BarkingSession']
+    total_bark_duration: float
+    total_session_duration: float
+    violation_type: Optional[str] = None  # "Constant" or "Intermittent"
+    is_violation: bool = False
+
+
+@dataclass
+class ViolationReport:
+    """Represents a detected bylaw violation with RDCO-compliant information."""
+    date: str  # YYYY-MM-DD format
+    start_time: str  # HH:MM AM/PM format
+    end_time: str  # HH:MM AM/PM format
+    violation_type: str  # "Constant" or "Intermittent"
+    total_bark_duration: float  # Total barking time in seconds
+    total_incident_duration: float  # Total incident time in seconds
+    audio_files: List[str]  # List of associated recording files
+    confidence_scores: List[float]  # Confidence scores from detections
+    peak_confidence: float
+    avg_confidence: float
+    created_timestamp: str  # ISO format timestamp when report was generated
+
+
+class ViolationDatabase:
+    """Manages collection and persistence of violation reports."""
+    
+    def __init__(self, db_path: Path = None):
+        """Initialize violation database."""
+        if db_path is None:
+            db_path = Path.home() / '.bark_detector' / 'violations.json'
+        
+        self.db_path = db_path
+        self.violations: List[ViolationReport] = []
+        self._load_violations()
+    
+    def _load_violations(self):
+        """Load existing violations from database file."""
+        try:
+            if self.db_path.exists():
+                with open(self.db_path, 'r') as f:
+                    data = json.load(f)
+                    self.violations = [
+                        ViolationReport(**violation_data) 
+                        for violation_data in data.get('violations', [])
+                    ]
+        except Exception as e:
+            logger.warning(f"Could not load violation database: {e}")
+            self.violations = []
+    
+    def save_violations(self):
+        """Save violations to database file."""
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            data = {
+                'violations': [
+                    {
+                        'date': v.date,
+                        'start_time': v.start_time,
+                        'end_time': v.end_time,
+                        'violation_type': v.violation_type,
+                        'total_bark_duration': v.total_bark_duration,
+                        'total_incident_duration': v.total_incident_duration,
+                        'audio_files': v.audio_files,
+                        'confidence_scores': v.confidence_scores,
+                        'peak_confidence': v.peak_confidence,
+                        'avg_confidence': v.avg_confidence,
+                        'created_timestamp': v.created_timestamp
+                    }
+                    for v in self.violations
+                ]
+            }
+            
+            with open(self.db_path, 'w') as f:
+                json.dump(data, f, indent=2)
+                
+        except Exception as e:
+            logger.error(f"Could not save violation database: {e}")
+    
+    def add_violation(self, violation: ViolationReport):
+        """Add a violation report to the database."""
+        self.violations.append(violation)
+        self.save_violations()
+    
+    def get_violations_by_date_range(self, start_date: str, end_date: str) -> List[ViolationReport]:
+        """Get violations within date range (YYYY-MM-DD format)."""
+        return [
+            v for v in self.violations 
+            if start_date <= v.date <= end_date
+        ]
+    
+    def get_violations_by_date(self, date: str) -> List[ViolationReport]:
+        """Get violations for specific date (YYYY-MM-DD format)."""
+        return [v for v in self.violations if v.date == date]
+    
+    def export_to_csv(self, output_path: Path) -> None:
+        """Export violations to CSV format for RDCO submission."""
+        import csv
+        
+        with open(output_path, 'w', newline='') as csvfile:
+            fieldnames = [
+                'Date', 'Start Time', 'End Time', 'Violation Type',
+                'Total Bark Duration (min)', 'Total Incident Duration (min)',
+                'Audio Files', 'Peak Confidence', 'Avg Confidence'
+            ]
+            
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            
+            for v in self.violations:
+                writer.writerow({
+                    'Date': v.date,
+                    'Start Time': v.start_time,
+                    'End Time': v.end_time,
+                    'Violation Type': v.violation_type,
+                    'Total Bark Duration (min)': f"{v.total_bark_duration / 60:.1f}",
+                    'Total Incident Duration (min)': f"{v.total_incident_duration / 60:.1f}",
+                    'Audio Files': '; '.join(v.audio_files),
+                    'Peak Confidence': f"{v.peak_confidence:.3f}",
+                    'Avg Confidence': f"{v.avg_confidence:.3f}"
+                })
+
+
+class LegalViolationTracker:
+    """Enhanced legal violation tracker for City of Kelowna bylaw violations."""
+    
+    def __init__(self, violation_db: ViolationDatabase = None):
+        """Initialize legal violation tracker."""
+        self.violation_db = violation_db or ViolationDatabase()
+        
+        # Legal session tracking
+        self.current_legal_sporadic_session: Optional[LegalSporadicSession] = None
+        self.legal_gap_threshold = 300.0  # 5 minutes for legal sporadic sessions
+        self.continuous_violation_threshold = 300.0  # 5 minutes for continuous violations
+        self.sporadic_violation_threshold = 900.0  # 15 minutes for sporadic violations
+        self.sequence_gap_threshold = 30.0  # 30 seconds for continuous sequence detection
+        
+        # Tracking state
+        self.last_session_end_time = 0.0
+        self.processed_sessions: List[BarkingSession] = []
+    
+    def process_barking_sessions(self, sessions: List[BarkingSession], recording_date: str = None) -> List[ViolationReport]:
+        """
+        Process a list of barking sessions and detect violations.
+        
+        Args:
+            sessions: List of BarkingSession objects to analyze
+            recording_date: Date string (YYYY-MM-DD) for the recordings
+            
+        Returns:
+            List of ViolationReport objects for detected violations
+        """
+        if not sessions:
+            return []
+        
+        # Sort sessions by start time
+        sorted_sessions = sorted(sessions, key=lambda x: x.start_time)
+        
+        # Group sessions into legal sporadic sessions
+        legal_sessions = self._group_sessions_into_legal_sessions(sorted_sessions)
+        
+        # Detect violations in each legal session
+        violations = []
+        for legal_session in legal_sessions:
+            # Check for continuous violations within this legal session
+            continuous_violations = self._detect_continuous_violations(legal_session, recording_date)
+            violations.extend(continuous_violations)
+            
+            # Check for sporadic violations across the entire legal session
+            sporadic_violation = self._detect_sporadic_violation(legal_session, recording_date)
+            if sporadic_violation:
+                violations.append(sporadic_violation)
+        
+        # Add violations to database
+        for violation in violations:
+            self.violation_db.add_violation(violation)
+        
+        return violations
+    
+    def _group_sessions_into_legal_sessions(self, sessions: List[BarkingSession]) -> List[LegalSporadicSession]:
+        """Group barking sessions into legal sporadic sessions using 5-minute gap threshold."""
+        if not sessions:
+            return []
+        
+        legal_sessions = []
+        current_session_groups = [sessions[0]]
+        
+        for i in range(1, len(sessions)):
+            current_session = sessions[i]
+            last_session = current_session_groups[-1]
+            
+            # Check gap between sessions
+            gap = current_session.start_time - last_session.end_time
+            
+            if gap <= self.legal_gap_threshold:
+                # Continue current legal sporadic session
+                current_session_groups.append(current_session)
+            else:
+                # Create legal sporadic session and start new one
+                legal_session = self._create_legal_sporadic_session(current_session_groups)
+                legal_sessions.append(legal_session)
+                current_session_groups = [current_session]
+        
+        # Add final legal session
+        if current_session_groups:
+            legal_session = self._create_legal_sporadic_session(current_session_groups)
+            legal_sessions.append(legal_session)
+        
+        return legal_sessions
+    
+    def _create_legal_sporadic_session(self, sessions: List[BarkingSession]) -> LegalSporadicSession:
+        """Create a LegalSporadicSession from a group of BarkingSessions."""
+        start_time = min(session.start_time for session in sessions)
+        end_time = max(session.end_time for session in sessions)
+        total_bark_duration = sum(session.total_duration for session in sessions)
+        total_session_duration = end_time - start_time
+        
+        return LegalSporadicSession(
+            start_time=start_time,
+            end_time=end_time,
+            barking_sessions=sessions,
+            total_bark_duration=total_bark_duration,
+            total_session_duration=total_session_duration
+        )
+    
+    def _detect_continuous_violations(self, legal_session: LegalSporadicSession, recording_date: str) -> List[ViolationReport]:
+        """Detect continuous violations within a legal sporadic session."""
+        violations = []
+        
+        # Method 1: Check individual sessions ≥ 5 minutes
+        for session in legal_session.barking_sessions:
+            if session.total_duration >= self.continuous_violation_threshold:
+                violation = self._create_violation_report(
+                    sessions=[session],
+                    violation_type="Constant",
+                    recording_date=recording_date,
+                    start_time=session.start_time,
+                    end_time=session.end_time
+                )
+                violations.append(violation)
+        
+        # Method 2: Check sequences of sessions with gaps ≤ 30 seconds that total ≥ 5 minutes
+        sequence_violations = self._detect_continuous_sequences(legal_session.barking_sessions, recording_date)
+        violations.extend(sequence_violations)
+        
+        return violations
+    
+    def _detect_continuous_sequences(self, sessions: List[BarkingSession], recording_date: str) -> List[ViolationReport]:
+        """Detect continuous violation sequences (sessions with gaps ≤30s totaling ≥5min)."""
+        violations = []
+        
+        if len(sessions) < 2:
+            return violations
+        
+        i = 0
+        while i < len(sessions):
+            # Start a potential sequence
+            sequence_sessions = [sessions[i]]
+            sequence_bark_duration = sessions[i].total_duration
+            j = i + 1
+            
+            # Extend sequence while gaps are ≤ 30 seconds
+            while j < len(sessions):
+                gap = sessions[j].start_time - sequence_sessions[-1].end_time
+                if gap <= self.sequence_gap_threshold:
+                    sequence_sessions.append(sessions[j])
+                    sequence_bark_duration += sessions[j].total_duration
+                    j += 1
+                else:
+                    break
+            
+            # Check if sequence qualifies as continuous violation
+            if len(sequence_sessions) > 1 and sequence_bark_duration >= self.continuous_violation_threshold:
+                # Make sure we haven't already detected this as a single session violation
+                if not any(session.total_duration >= self.continuous_violation_threshold for session in sequence_sessions):
+                    violation = self._create_violation_report(
+                        sessions=sequence_sessions,
+                        violation_type="Constant",
+                        recording_date=recording_date,
+                        start_time=sequence_sessions[0].start_time,
+                        end_time=sequence_sessions[-1].end_time
+                    )
+                    violations.append(violation)
+            
+            # Move to next potential sequence start
+            i = max(i + 1, j)
+        
+        return violations
+    
+    def _detect_sporadic_violation(self, legal_session: LegalSporadicSession, recording_date: str) -> Optional[ViolationReport]:
+        """Detect sporadic violations (≥15 minutes total barking in legal session)."""
+        if legal_session.total_bark_duration >= self.sporadic_violation_threshold:
+            return self._create_violation_report(
+                sessions=legal_session.barking_sessions,
+                violation_type="Intermittent",
+                recording_date=recording_date,
+                start_time=legal_session.start_time,
+                end_time=legal_session.end_time
+            )
+        return None
+    
+    def _create_violation_report(self, sessions: List[BarkingSession], violation_type: str, 
+                               recording_date: str, start_time: float, end_time: float) -> ViolationReport:
+        """Create a ViolationReport from detected violation."""
+        from datetime import datetime
+        
+        # Calculate violation metrics
+        total_bark_duration = sum(session.total_duration for session in sessions)
+        total_incident_duration = end_time - start_time
+        
+        # Extract confidence data
+        all_confidences = []
+        for session in sessions:
+            all_confidences.extend([event.confidence for event in session.events])
+        
+        peak_confidence = max(all_confidences) if all_confidences else 0.0
+        avg_confidence = sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
+        
+        # Convert timestamps to readable format
+        start_dt = datetime.fromtimestamp(start_time)
+        end_dt = datetime.fromtimestamp(end_time)
+        
+        # Use provided date or extract from timestamp
+        if recording_date:
+            report_date = recording_date
+        else:
+            report_date = start_dt.strftime("%Y-%m-%d")
+        
+        start_time_str = start_dt.strftime("%I:%M %p").lstrip('0')
+        end_time_str = end_dt.strftime("%I:%M %p").lstrip('0')
+        
+        # Generate audio file references (placeholder - would need actual file mapping)
+        audio_files = [f"bark_recording_{start_dt.strftime('%Y%m%d_%H%M%S')}.wav"]
+        
+        return ViolationReport(
+            date=report_date,
+            start_time=start_time_str,
+            end_time=end_time_str,
+            violation_type=violation_type,
+            total_bark_duration=total_bark_duration,
+            total_incident_duration=total_incident_duration,
+            audio_files=audio_files,
+            confidence_scores=all_confidences,
+            peak_confidence=peak_confidence,
+            avg_confidence=avg_confidence,
+            created_timestamp=datetime.now().isoformat()
+        )
+    
+    def analyze_recordings_for_date(self, recordings_dir: Path, target_date: str, detector: 'AdvancedBarkDetector' = None) -> List[ViolationReport]:
+        """
+        Analyze all recordings for a specific date and detect violations.
+        
+        Args:
+            recordings_dir: Path to recordings directory
+            target_date: Date string in YYYY-MM-DD format
+            detector: AdvancedBarkDetector instance for analysis
+            
+        Returns:
+            List of detected violations for that date
+        """
+        if not detector:
+            logger.error("Detector instance required for recording analysis")
+            return []
+        
+        # Create recording file parser
+        parser = RecordingFileParser(detector)
+        
+        # Get all barking sessions for the date
+        sessions = parser.analyze_recordings_for_date(recordings_dir, target_date)
+        
+        if not sessions:
+            logger.info(f"No barking sessions found for {target_date}")
+            return []
+        
+        # Process sessions and detect violations
+        violations = self.process_barking_sessions(sessions, target_date)
+        
+        if violations:
+            logger.info(f"Detected {len(violations)} violations for {target_date}")
+            for violation in violations:
+                logger.info(f"  {violation.violation_type} violation: {violation.start_time} - {violation.end_time} "
+                           f"({violation.total_bark_duration/60:.1f}min barking)")
+        else:
+            logger.info(f"No violations detected for {target_date}")
+        
+        return violations
+
+
+class RecordingFileParser:
+    """Parser for analyzing existing recording files and reconstructing sessions."""
+    
+    def __init__(self, detector: 'AdvancedBarkDetector'):
+        """Initialize recording file parser."""
+        self.detector = detector
+        
+    def get_recordings_for_date(self, recordings_dir: Path, target_date: str) -> List[Path]:
+        """
+        Get all recording files for a specific date.
+        
+        Args:
+            recordings_dir: Path to recordings directory
+            target_date: Date string in YYYY-MM-DD format
+            
+        Returns:
+            List of recording file paths for that date
+        """
+        date_parts = target_date.split('-')
+        if len(date_parts) != 3:
+            raise ValueError(f"Invalid date format: {target_date}. Use YYYY-MM-DD")
+        
+        year, month, day = date_parts
+        date_pattern = f"{year}{month}{day}"
+        
+        recording_files = []
+        pattern = f"bark_recording_{date_pattern}_*.wav"
+        
+        for file_path in recordings_dir.glob(pattern):
+            recording_files.append(file_path)
+        
+        # Sort by timestamp in filename
+        recording_files.sort(key=lambda x: self._extract_timestamp_from_filename(x.name))
+        
+        return recording_files
+    
+    def _extract_timestamp_from_filename(self, filename: str) -> float:
+        """
+        Extract timestamp from recording filename.
+        Expected format: bark_recording_YYYYMMDD_HHMMSS.wav
+        """
+        try:
+            # Remove extension and split
+            name_parts = filename.replace('.wav', '').split('_')
+            if len(name_parts) >= 4 and name_parts[0] == 'bark' and name_parts[1] == 'recording':
+                date_str = name_parts[2]  # YYYYMMDD
+                time_str = name_parts[3]  # HHMMSS
+                
+                # Parse date and time
+                from datetime import datetime
+                dt_str = f"{date_str}_{time_str}"
+                dt = datetime.strptime(dt_str, "%Y%m%d_%H%M%S")
+                return dt.timestamp()
+        except Exception as e:
+            logger.warning(f"Could not parse timestamp from filename {filename}: {e}")
+        
+        return 0.0
+    
+    def analyze_recording_file(self, recording_path: Path) -> List[BarkingSession]:
+        """
+        Analyze a single recording file and extract barking sessions.
+        
+        Args:
+            recording_path: Path to the recording file
+            
+        Returns:
+            List of BarkingSession objects detected in the file
+        """
+        try:
+            import librosa
+            
+            logger.info(f"Analyzing recording: {recording_path.name}")
+            
+            # Load audio file
+            audio_data, sample_rate = librosa.load(str(recording_path), sr=16000, mono=True)
+            
+            if len(audio_data) == 0:
+                logger.warning(f"Empty audio file: {recording_path}")
+                return []
+            
+            # Get file timestamp from filename
+            file_timestamp = self._extract_timestamp_from_filename(recording_path.name)
+            
+            # Detect bark events in the recording
+            bark_events = self.detector._detect_barks_in_buffer(audio_data)
+            
+            if not bark_events:
+                logger.info(f"No barks detected in {recording_path.name}")
+                return []
+            
+            # Adjust event timestamps to real time based on file timestamp
+            duration = len(audio_data) / sample_rate
+            for event in bark_events:
+                event.start_time = file_timestamp + event.start_time
+                event.end_time = file_timestamp + event.end_time
+                # Calculate intensity
+                event.intensity = self.detector._calculate_event_intensity(audio_data, 
+                    BarkEvent(event.start_time - file_timestamp, 
+                             event.end_time - file_timestamp, 
+                             event.confidence))
+            
+            # Group events into barking sessions
+            sessions = self.detector._group_events_into_sessions(bark_events)
+            
+            logger.info(f"Found {len(bark_events)} bark events in {len(sessions)} sessions from {recording_path.name}")
+            
+            return sessions
+            
+        except Exception as e:
+            logger.error(f"Error analyzing recording {recording_path}: {e}")
+            return []
+    
+    def analyze_recordings_for_date(self, recordings_dir: Path, target_date: str) -> List[BarkingSession]:
+        """
+        Analyze all recordings for a specific date and return all barking sessions.
+        
+        Args:
+            recordings_dir: Path to recordings directory
+            target_date: Date string in YYYY-MM-DD format
+            
+        Returns:
+            List of all BarkingSession objects for that date
+        """
+        recording_files = self.get_recordings_for_date(recordings_dir, target_date)
+        
+        if not recording_files:
+            logger.info(f"No recordings found for date: {target_date}")
+            return []
+        
+        logger.info(f"Found {len(recording_files)} recording files for {target_date}")
+        
+        all_sessions = []
+        for recording_file in recording_files:
+            sessions = self.analyze_recording_file(recording_file)
+            all_sessions.extend(sessions)
+        
+        # Sort sessions by start time
+        all_sessions.sort(key=lambda x: x.start_time)
+        
+        logger.info(f"Total sessions for {target_date}: {len(all_sessions)}")
+        
+        return all_sessions
+
+
 class FileBasedCalibration:
     """File-based calibration using ground truth timestamps."""
     
@@ -928,6 +1465,10 @@ class AdvancedBarkDetector:
         self.detection_cooldown_duration = 2.5  # Seconds to wait before reporting another bark
         self.max_recent_detections = 10  # Maximum number of recent detections to track
         
+        # Violation detection system
+        self.violation_tracker = LegalViolationTracker()
+        self.enable_real_time_violations = False  # Can be enabled for real-time violation detection
+        
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
         
@@ -1599,6 +2140,67 @@ class AdvancedBarkDetector:
                 logger.warning(f"Could not load profile {profile_file}: {e}")
         
         return profiles
+    
+    def analyze_violations_for_date(self, target_date: str) -> List[ViolationReport]:
+        """
+        Analyze recordings for a specific date and detect bylaw violations.
+        
+        Args:
+            target_date: Date string in YYYY-MM-DD format
+            
+        Returns:
+            List of detected violations for that date
+        """
+        recordings_dir = Path(self.output_dir)
+        return self.violation_tracker.analyze_recordings_for_date(recordings_dir, target_date, self)
+    
+    def generate_violation_report(self, start_date: str, end_date: str) -> List[ViolationReport]:
+        """
+        Generate violation report for a date range.
+        
+        Args:
+            start_date: Start date in YYYY-MM-DD format
+            end_date: End date in YYYY-MM-DD format
+            
+        Returns:
+            List of violations in the date range
+        """
+        return self.violation_tracker.violation_db.get_violations_by_date_range(start_date, end_date)
+    
+    def export_violations_csv(self, output_path: Path, start_date: str = None, end_date: str = None):
+        """
+        Export violations to CSV format for RDCO submission.
+        
+        Args:
+            output_path: Path for output CSV file
+            start_date: Optional start date filter (YYYY-MM-DD)
+            end_date: Optional end date filter (YYYY-MM-DD)
+        """
+        if start_date and end_date:
+            # Filter violations by date range
+            violations = self.violation_tracker.violation_db.get_violations_by_date_range(start_date, end_date)
+            
+            # Create temporary database with filtered violations
+            temp_db = ViolationDatabase()
+            temp_db.violations = violations
+            temp_db.export_to_csv(output_path)
+        else:
+            # Export all violations
+            self.violation_tracker.violation_db.export_to_csv(output_path)
+        
+        logger.info(f"Violations exported to: {output_path}")
+    
+    def list_violations(self) -> List[ViolationReport]:
+        """List all detected violations."""
+        return self.violation_tracker.violation_db.violations
+    
+    def enable_real_time_violation_detection(self, enable: bool = True):
+        """Enable or disable real-time violation detection during monitoring."""
+        self.enable_real_time_violations = enable
+        if enable:
+            logger.info("Real-time violation detection enabled")
+        else:
+            logger.info("Real-time violation detection disabled")
 
 
 def parse_arguments():
@@ -1631,6 +2233,12 @@ Examples:
   uv run bd.py --list-profiles                   # Show available profiles
   uv run bd.py --list-convertible ~/Downloads    # Find Voice Memo files
   uv run bd.py --record bark_sample.wav          # Record calibration sample
+  
+  # Violation analysis
+  uv run bd.py --analyze-violations 2025-08-03   # Analyze recordings for specific date
+  uv run bd.py --violation-report 2025-08-01 2025-08-05  # Generate report for date range
+  uv run bd.py --list-violations                 # List all detected violations
+  uv run bd.py --export-violations violations.csv  # Export violations to CSV
         """
     )
     
@@ -1683,6 +2291,32 @@ Examples:
         '--record', 
         type=str,
         help='Record calibration sample to specified file (WAV format)'
+    )
+    
+    # Violation analysis commands
+    parser.add_argument(
+        '--analyze-violations',
+        type=str,
+        help='Analyze recordings for violations on specific date (YYYY-MM-DD format)'
+    )
+    
+    parser.add_argument(
+        '--violation-report',
+        nargs=2,
+        metavar=('START_DATE', 'END_DATE'),
+        help='Generate violation report for date range (YYYY-MM-DD YYYY-MM-DD)'
+    )
+    
+    parser.add_argument(
+        '--list-violations',
+        action='store_true',
+        help='List all detected violations'
+    )
+    
+    parser.add_argument(
+        '--export-violations',
+        type=str,
+        help='Export violations to CSV file'
     )
     
     # File-based calibration
@@ -1825,6 +2459,67 @@ def main():
         logger.info("🎙️  Starting manual recording mode for calibration...")
         recorder = ManualRecorder(detector, output_path)
         recorder.start_recording()
+        return
+    
+    # Violation analysis commands
+    if args.analyze_violations:
+        target_date = args.analyze_violations
+        logger.info(f"🔍 Analyzing recordings for violations on {target_date}")
+        try:
+            violations = detector.analyze_violations_for_date(target_date)
+            if violations:
+                logger.info(f"✅ Found {len(violations)} violations:")
+                for violation in violations:
+                    logger.info(f"  📅 {violation.date} {violation.start_time} - {violation.end_time}")
+                    logger.info(f"     Type: {violation.violation_type}, Duration: {violation.total_bark_duration/60:.1f}min")
+            else:
+                logger.info("✅ No violations detected for this date")
+        except Exception as e:
+            logger.error(f"❌ Error analyzing violations: {e}")
+        return
+    
+    if args.violation_report:
+        start_date, end_date = args.violation_report
+        logger.info(f"📊 Generating violation report for {start_date} to {end_date}")
+        try:
+            violations = detector.generate_violation_report(start_date, end_date)
+            if violations:
+                logger.info(f"📋 Violation Report ({len(violations)} violations):")
+                for violation in violations:
+                    logger.info(f"  📅 {violation.date} {violation.start_time} - {violation.end_time}")
+                    logger.info(f"     Type: {violation.violation_type}")
+                    logger.info(f"     Bark Duration: {violation.total_bark_duration/60:.1f}min")
+                    logger.info(f"     Incident Duration: {violation.total_incident_duration/60:.1f}min")
+                    logger.info(f"     Audio Files: {', '.join(violation.audio_files)}")
+            else:
+                logger.info("📋 No violations found in date range")
+        except Exception as e:
+            logger.error(f"❌ Error generating report: {e}")
+        return
+    
+    if args.list_violations:
+        logger.info("📋 Listing all detected violations:")
+        try:
+            violations = detector.list_violations()
+            if violations:
+                logger.info(f"Found {len(violations)} total violations:")
+                for violation in violations:
+                    logger.info(f"  📅 {violation.date} {violation.start_time} - {violation.end_time}")
+                    logger.info(f"     Type: {violation.violation_type}, Duration: {violation.total_bark_duration/60:.1f}min")
+            else:
+                logger.info("No violations detected yet")
+        except Exception as e:
+            logger.error(f"❌ Error listing violations: {e}")
+        return
+    
+    if args.export_violations:
+        output_path = Path(args.export_violations)
+        logger.info(f"📄 Exporting violations to {output_path}")
+        try:
+            detector.export_violations_csv(output_path)
+            logger.info(f"✅ Violations exported successfully")
+        except Exception as e:
+            logger.error(f"❌ Error exporting violations: {e}")
         return
     
     # Create ground truth template

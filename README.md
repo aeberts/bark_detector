@@ -221,3 +221,13 @@ uv run bd.py --calibrate-files --audio-files voice_memo.m4a background.wav
 - `.python-version` - Python version specification
 - `recordings/` - Output directory for audio recordings
 - `bark_detector.log` - Application logs
+
+## Misc Notes
+
+iCloud Voice Memos are saved in different folders depending on the OS:
+
+MacOS 14.6.1 Sonoma:
+~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings
+
+MacOS 11.6.1 Big Sur:
+~/Library/Application Support/com.apple.voicememos/Recordings

@@ -15,14 +15,14 @@
 - [x] Feature: Cross-platform deployment with intelligent installer
 - [x] Feature: Real-time monitoring interface with console output
 
-### Legal Evidence Features (Not Yet Implemented)
-- [ ] Feature: Implement LegalViolationTracker class for bylaw violation detection
-- [ ] Feature: Auto-flag 5-minute continuous barking violations
-- [ ] Feature: Auto-flag 15-minute sporadic barking violations
+### Legal Evidence Features (Partially Implemented)
+- [x] Feature: Implement LegalViolationTracker class for bylaw violation detection
+- [x] Feature: Auto-flag 5-minute continuous barking violations
+- [x] Feature: Auto-flag 15-minute sporadic barking violations
 - [ ] Feature: Create PDF report generation for city submission
-- [ ] Feature: Build multi-day evidence tracking (3-5 day periods)
-- [ ] Feature: Implement audio evidence packaging with metadata
-- [ ] Feature: Generate city-compliant documentation with exact dates/times/durations
+- [x] Feature: Build multi-day evidence tracking (3-5 day periods) 
+- [x] Feature: Implement audio evidence packaging with metadata
+- [x] Feature: Generate city-compliant documentation with exact dates/times/durations
 
 ### Automation & Scheduling (Not Yet Implemented)
 - [ ] Feature: Implement automated scheduling system with configurable start times
