@@ -1,3 +1,10 @@
+# Features to Discuss & Plan
+- [ ] Improvement: reduce sensitivity of the bark detector to only begin barking when the YAMNet confidence is 0.68 or higher to avoid false positives.
+- [ ] Task: Save reports to the `reports/` folder
+- [ ] Task: Refactor bd.py into separate modules
+- [ ] Improvement: Configure bark recorder with a configuration file supporting all current features.
+- [ ] Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
+
 # Backlog
 
 ## Bugs

@@ -7,6 +7,12 @@
 Icon?
 ._*
 
+# Development Caches
+.clj-kondo/
+.github/
+.lsp/
+.vscode/
+
 # Claude, Windsurf, etc.
 .claude/
 
@@ -53,9 +59,10 @@ nox/
 runtime_files/
 *.pid
 
-# Recordings and Samples
+# Recordings, Samples, etc.
 recordings/
 samples/
+reports/
 
 # UV files (platform-specific)
 uv.lock
