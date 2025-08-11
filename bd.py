@@ -1743,7 +1743,7 @@ class CalibrationMode:
             new_sensitivity = current_sensitivity * 1.1
         
         # Clamp to reasonable range
-        new_sensitivity = max(0.01, min(0.5, new_sensitivity))
+        new_sensitivity = max(0.01, min(1.0, new_sensitivity))
         
         if abs(new_sensitivity - current_sensitivity) > 0.005:
             self.detector.sensitivity = new_sensitivity
@@ -1789,7 +1789,7 @@ class AdvancedBarkDetector:
     """Advanced bark detector using YAMNet with comprehensive analysis."""
     
     def __init__(self, 
-                 sensitivity: float = 0.05,
+                 sensitivity: float = 0.68,
                  sample_rate: int = 16000,
                  chunk_size: int = 1024,
                  channels: int = 1,
@@ -2757,8 +2757,8 @@ Examples:
     parser.add_argument(
         '--sensitivity', 
         type=float, 
-        default=0.05,
-        help='Detection sensitivity (0.01-0.5, default: 0.05)'
+        default=0.68,
+        help='Detection sensitivity (0.01-1.0, default: 0.68)'
     )
     
     parser.add_argument(
