@@ -18,9 +18,9 @@
 - None identified
 
 ## Next Priorities
-1. Complete PDF report generation for city submission
-2. Refactor bd.py into separate modules for maintainability
-3. Add configuration file support for all current features
+1. F12: Complete PDF report generation for city submission
+2. T2: Refactor bd.py into separate modules for maintainability
+3. I2: Add configuration file support for all current features
 
 ## Technical Status
 - **Platform**: Cross-platform (M1 Mac, Intel Mac, Linux)

@@ -25,27 +25,29 @@ IMPORTANT: This project uses shared planning documents so CC can track changes w
 - @ requirements-intel.txt - Intel-Mac package requirements for installation
 
 # Progress Tracking
-- Track project status in the @docs/backlog.md file
+- Track project status in the @docs/backlog.md file. Use ASCII text only - don't use emoji.
+- After a task has been completed add a short summary to @CHANGELOG.md
 
 # Templates & Workflows
-- PRD Creation: Read @docs/templates/prd_template.md
-- User Stories: Read @docs/templates/user_story_template.md  
 - Session Restart: Read @docs/templates/session_restart.md
+- PRD Creation: Read @docs/templates/prd_template.md
+- User Stories: Read @docs/templates/user_story_template.md
 - Architecture Decisions: Record in @docs/decisions.md
 
 # Development Workflow
 
 ## Session Startup
-1. Check @docs/project_status.md for current state
-2. Review @docs/backlog.md for active priorities
+1. Review @docs/backlog.md for active priorities
+2. Check @docs/project_status.md for current state
 
 ## Plan and Review
-
-First read and understand the planning documents @docs/project_status.md, @docs/project_overview.md, @docs/features.md, @docs/backlog.md, @docs/bugs.md
+First read and understand the planning documents @docs/backlog.md, @docs/project_status.md, @docs/project_overview.md, @docs/features.md, @docs/bugs.md.
+- @docs/backlog.md is where the user will record ideas to work on - check that document first!
+- Order for tasks to work on: suggest bug fixes -> low-effort "quick wins" -> larger features.
 
 ## Before Carrying out User Requests:
 - Always start in plan mode.
-- Check `@docs/project_status.md`, `@docs/backlog.md`, and suggest a task to work on next. Suggest two other task options.
+- Check `@docs/backlog.md` then `@docs/project_status.md`, and suggest a task to work on next. Suggest two other task options. Present tasks using their numbered identifiers (e.g., "I2", "T1", "F12" as well as their brief description).
 - Next, check `@docs/features.md` to see if requirements have been created for the task you have been asked to work on.
 - If there are no details in `@docs/features.md` or the other planning documents for the task, plan the feature (ask the user clarifying questions if necessary) and record any relevant discussions and decisions to the requirements or specification for that feature in `docs/features.md` using @docs/templates/prd_template.md, @docs/templates/user_story_template.md as necessary.
 - Don't overplan - think MVP.
@@ -57,9 +59,9 @@ First read and understand the planning documents @docs/project_status.md, @docs/
 - Record any changes to the plan in the planning documents as necessary.
 
 ## After completing work
-
-- After completing work, update the relevant planning documents with:
-    - Task completion status (@docs/backlog.md, @docs/features.md, @docs/project_status.md, @CHANGELOG.md)
-    - New decisions made (@docs/decisions.md)
-    - Any changes to architecture or approach (@docs/project_overview.md)
-    - Notes for future collaboration (@docs/backlog.md - append to the `# Features to Discuss & Plan` section)
+- After completing work:
+    - Update the task status in @docs/backlog.md
+    - Update the @CHANGELOG.md file with a short summary of the work completed.
+    - Update the @docs/decisions.md file with a summary of the work completed including reasoning for the change.
+    - Update @docs/project_overview.md if there were any significant changes to the architecture or approach.
+    - Update the #Claude Suggested Improvements section of @docs/backlog.md with any suggested future tasks.
