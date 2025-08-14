@@ -1,3 +1,80 @@
+# BUG: Recordings start at confidence interval below 0.68 (IDENTIFIED - Root Cause Found)
+
+## Root Cause Analysis
+
+**Problem**: When using saved calibration profiles with `--profile`, recordings start at confidence levels below the intended 0.68 threshold.
+
+**Root Cause**: Saved calibration profiles contain old sensitivity values (e.g., 0.19) that override the new 0.68 default setting. The profile loading system works as designed, but existing profiles were calibrated before the 0.68 sensitivity change.
+
+**Evidence from log analysis**:
+- Line 18: System correctly initializes with sensitivity 0.68 ✅
+- Line 24: Profile `woofy-world-file-calib` loads with sensitivity 0.19052631578947368 ❌
+- Line 28: Final effective sensitivity becomes 0.191 (profile overrides default)
+- Lines 34-40: Barks detected at confidence 0.287, 0.336, 0.196, 0.426, 0.291 (all below 0.68)
+
+**Reproduction**: 
+- Run `uv run bd.py --profile woofy-world-file-calib` 
+- Profile overrides 0.68 default with old calibrated value (~0.19)
+- System records barks at confidence levels below 0.68
+
+**Fix Required**: Profile system needs to enforce minimum sensitivity of 0.68 to prevent old profiles from using outdated low-sensitivity values.
+
+## Bug Report
+
+(bark-detector) ➜  bark_detector git:(main) uv run bd.py --profile woofy-world-file-calib
+/Users/zand/dev/bark_detector/.venv/lib/python3.11/site-packages/tensorflow_hub/__init__.py:61: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+2025-08-11 07:45:50,346 - INFO - ======================================================================
+2025-08-11 07:45:50,347 - INFO - Advanced YAMNet Bark Detector v3.0
+2025-08-11 07:45:50,347 - INFO - ML-based Detection with Legal Evidence Collection
+2025-08-11 07:45:50,347 - INFO - ======================================================================
+2025-08-11 07:45:50,349 - INFO - Downloading YAMNet model (this may take a few minutes on first run)...
+Downloading YAMNet model2025-08-11 07:45:50,349 - INFO - Using /var/folders/1h/ky9z5q955p397p2p6qz_z1cc0000gp/T/tfhub_modules to cache modules.
+2025-08-11 07:45:53,380 - INFO - YAMNet model downloaded successfully!
+2025-08-11 07:45:53,381 - INFO - Loading class names...
+2025-08-11 07:45:53,394 - INFO - YAMNet model loaded successfully!
+2025-08-11 07:45:53,395 - INFO - Model supports 521 audio classes
+2025-08-11 07:45:53,395 - INFO - Found 13 bark-related classes
+2025-08-11 07:45:53,395 - INFO - Advanced Bark Detector initialized:
+2025-08-11 07:45:53,395 - INFO -   Sensitivity: 0.68
+2025-08-11 07:45:53,395 - INFO -   Sample Rate: 16000 Hz
+2025-08-11 07:45:53,395 - INFO -   Session Gap Threshold: 10.0s
+2025-08-11 07:45:53,395 - INFO -   Quiet Duration: 30.0s
+2025-08-11 07:45:53,395 - INFO -   Output Directory: recordings
+2025-08-11 07:45:53,395 - INFO - 📂 Profile loaded: woofy-world-file-calib
+2025-08-11 07:45:53,395 - INFO -   Sensitivity: 0.19052631578947368
+2025-08-11 07:45:53,396 - INFO -   Notes: File-based calibration: F1=0.333, P=31.4%, R=35.5%, Files=3
+2025-08-11 07:45:53,396 - INFO - 🐕 Starting bark detection...
+2025-08-11 07:45:53,396 - INFO - 📂 Using profile: woofy-world-file-calib
+2025-08-11 07:45:53,396 - INFO - 🎛️ Sensitivity: 0.191
+2025-08-11 07:45:53,396 - INFO - Press Ctrl+C to stop
+2025-08-11 07:45:53,396 - INFO - Starting Advanced YAMNet Bark Detector...
+2025-08-11 07:45:53,464 - INFO - Advanced bark detector started successfully!
+2025-08-11 07:45:53,465 - INFO - Monitoring for barking sounds with comprehensive analysis...
+2025-08-11 07:45:53,465 - INFO - Press Ctrl+C to stop
+2025-08-11 07:45:54,784 - INFO - 🐕 BARK DETECTED! Confidence: 0.287, Intensity: 0.190, Duration: 0.48s
+2025-08-11 07:45:54,785 - INFO - Starting recording session...
+2025-08-11 07:45:57,030 - INFO - 🐕 BARK DETECTED! Confidence: 0.336, Intensity: 0.147, Duration: 0.48s
+2025-08-11 07:45:59,584 - INFO - 🐕 BARK DETECTED! Confidence: 0.604, Intensity: 0.274, Duration: 0.48s
+2025-08-11 07:46:02,278 - INFO - 🐕 BARK DETECTED! Confidence: 0.196, Intensity: 0.141, Duration: 0.48s
+2025-08-11 07:46:04,785 - INFO - 🐕 BARK DETECTED! Confidence: 0.426, Intensity: 0.185, Duration: 0.96s
+2025-08-11 07:46:07,525 - INFO - 🐕 BARK DETECTED! Confidence: 0.291, Intensity: 0.130, Duration: 0.48s
+^C2025-08-11 07:46:09,969 - INFO - Received interrupt signal...
+2025-08-11 07:46:09,970 - INFO - Stopping bark detector...
+2025-08-11 07:46:09,970 - INFO - Saving final recording...
+2025-08-11 07:46:09,973 - INFO - Analyzing complete recording...
+2025-08-11 07:46:10,045 - INFO - 🐕 BARK DETECTED! Confidence: 0.522, Intensity: 0.222, Duration: 0.96s
+2025-08-11 07:46:10,061 - INFO - Recording Analysis Complete:
+2025-08-11 07:46:10,061 - INFO -   Total Events: 3
+2025-08-11 07:46:10,061 - INFO -   Sessions: 1
+2025-08-11 07:46:10,061 - INFO -   Total Bark Duration: 10.1s (66.2%)
+2025-08-11 07:46:10,061 - INFO -   Average Confidence: 0.528
+2025-08-11 07:46:10,062 - INFO -   Average Intensity: 0.229
+2025-08-11 07:46:10,062 - INFO -   Session 1: 3 barks, 0.2 barks/sec, intensity: 0.229
+2025-08-11 07:46:10,062 - INFO - Recording saved: recordings/bark_recording_20250811_074609.wav (Duration: 15.2s)
+2025-08-11 07:46:10,062 - INFO - Session Summary - Start: 2025-08-11 07:45:54, End: 2025-08-11 07:46:10, Duration: 15.3s, Barks: 98, Avg Confidence: 0.396, Peak Confidence: 0.925
+2025-08-11 07:46:10,190 - INFO - Bark detector stopped.
+
 # BUG: Reports created with --export-violations contain incorrect references to audio files. (RESOLVED)
 
 Details: Reports created with --export-violations contain incorrect references to audio files.

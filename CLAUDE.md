@@ -43,25 +43,29 @@ IMPORTANT: This project uses shared planning documents so CC can track changes w
 ## Plan and Review
 First read and understand the planning documents @docs/backlog.md, @docs/project_status.md, @docs/project_overview.md, @docs/features.md, @docs/bugs.md.
 - @docs/backlog.md is where the user will record ideas to work on - check that document first!
-- Order for tasks to work on: suggest bug fixes -> low-effort "quick wins" -> larger features.
+- Order for suggested tasks to work on: bug fixes -> low-effort "quick wins" -> Improvements -> Larger features.
+- Add unique identifiers for tasks in the @docs/backlog.md file that don't already have one.
 
 ## Before Carrying out User Requests:
-- Always start in plan mode.
-- Check `@docs/backlog.md` then `@docs/project_status.md`, and suggest a task to work on next. Suggest two other task options. Present tasks using their numbered identifiers (e.g., "I2", "T1", "F12" as well as their brief description).
-- Next, check `@docs/features.md` to see if requirements have been created for the task you have been asked to work on.
-- If there are no details in `@docs/features.md` or the other planning documents for the task, plan the feature (ask the user clarifying questions if necessary) and record any relevant discussions and decisions to the requirements or specification for that feature in `docs/features.md` using @docs/templates/prd_template.md, @docs/templates/user_story_template.md as necessary.
+- Check `@docs/backlog.md` then `@docs/project_status.md`, and suggest 3 tasks to work on. 
+- Present tasks using their numbered identifiers (e.g., "I2", "T1", "F12" as well as their brief description).
+- For bugs, check the `@docs/bugs.md` file for bug details and logs.
+- For tasks, check `@docs/features.md` to see if requirements have been created for the task you have been asked to work on.
+- If there are no details in `@docs/features.md` or the other planning documents for the task, plan the feature (ask the user clarifying questions if necessary) and record any relevant discussions and decisions to the requirements or specification for that feature in `docs/features.md` using `@docs/templates/prd_template.md`, `@docs/templates/user_story_template.md` as necessary.
 - Don't overplan - think MVP.
 - Once you have presented the plan, stop and wait for the user to approve it. Do not continue until the user has approved the plan.
-- Once the plan has been approved, write a summary of any plans, requirements, specifications and decisions to the relevant planning documents.
+- Once the plan has been approved, update @docs/features.md with the feature requirements,  specifications and decisions.
 
-## While implementing
-- Update the plan as you work if necessary. If during research or planning you find a better solution, stop and ask the user before carrying out this plan. 
-- Record any changes to the plan in the planning documents as necessary.
+## While implementing:
+- Update todo list status in real-time (mark in_progress → completed)
+- If you discover a better approach, pause and ask user approval before 
+changing course
+- For complex tasks, provide progress updates every 2-3 completed steps
+- Document any technical decisions or workarounds in @docs/decisions.md
 
-## After completing work
-- After completing work:
-    - Update the task status in @docs/backlog.md
-    - Update the @CHANGELOG.md file with a short summary of the work completed.
-    - Update the @docs/decisions.md file with a summary of the work completed including reasoning for the change.
-    - Update @docs/project_overview.md if there were any significant changes to the architecture or approach.
-    - Update the #Claude Suggested Improvements section of @docs/backlog.md with any suggested future tasks.
+## After completing work:
+- Update the task status in @docs/backlog.md and move the task to a completed section.
+- Update the @CHANGELOG.md file with a short summary of the work completed.
+- Update the @docs/decisions.md file with a summary of the work completed including reasoning for the change.
+- Update @docs/project_overview.md if there were any significant changes to the architecture or approach.
+- Update the #Claude Suggested Improvements section of @docs/backlog.md with any suggested future tasks.

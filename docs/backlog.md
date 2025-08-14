@@ -1,5 +1,4 @@
-# Features to Discuss & Plan
-- [x] I1 Improvement: reduce sensitivity of the bark detector to only begin barking when the YAMNet confidence is 0.68 or higher to avoid false positives.
+# Tasks to Discuss & Plan
 - [ ] I2 Improvement: Configure bark recorder with a configuration file supporting all current features.
 - [ ] T1 Task: Save reports to the `reports/` folder
 - [ ] T2 Task: Refactor bd.py into separate modules
@@ -8,11 +7,8 @@
 # Backlog
 
 ## Bugs
-- [x] B1 Bug: YAMNet Error when starting the project.
-- [x] B2 Bug: Error saving violations database.
-- [x] B3 Bug: Reports created with --export-violations contain incorrect references to audio files.
 
-### Current Improvements & Enhancements
+## Current Improvements & Enhancements
 - [x] I3 Improvement: Avoid flooding console with multiple bark detections per real-world bark.
 - [x] I4 Improvement: Allow manual conversion of audio files from the command line
 - [ ] I5 Improvement: Optimize YAMNet performance for longer monitoring periods
@@ -22,9 +18,16 @@
 - [ ] I9 Improvement: Add configurable detection thresholds per dog breed/size
 - [ ] I10 Improvement: Create web-based interface for remote monitoring
 
-## Work-in-Progress and Planned Tasks
+## Fixed Bugs (Completed)
+- [x] B1 Bug: YAMNet Error when starting the project.
+- [x] B2 Bug: Error saving violations database.
+- [x] B3 Bug: Reports created with --export-violations contain incorrect references to audio files.
+- [x] B4 Bug: Recordings start at confidence interval below 0.68.
 
-### Implemented Features (Complete)
+## Implemented Improvements (Complete)
+- [x] I1 Improvement: reduce sensitivity of the bark detector to only begin barking when the YAMNet confidence is 0.68 or higher to avoid false positives.
+
+## Implemented Features (Complete)
 - [x] F1 Feature: YAMNet ML-based bark detection system
 - [x] F2 Feature: Audio recording management with session tracking
 - [x] F3 Feature: File-based calibration with ground truth annotation
