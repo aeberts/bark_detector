@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude auth)",
+      "Bash(env)",
+      "Bash(ls:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(uv run:*)",
+      "Bash(mkdir:*)",
+      "Bash(chmod:*)"
+    ],
+    "deny": [],
+    "defaultMode": "acceptEdits"
+  }
+}

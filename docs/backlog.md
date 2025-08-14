@@ -1,6 +1,7 @@
 # Tasks to Discuss & Plan
+- [ ] I11 Improvement: All recordings for a single day should go in their own folder.
 - [ ] I2 Improvement: Configure bark recorder with a configuration file supporting all current features.
-- [ ] T1 Task: Save reports to the `reports/` folder
+- [ ] I1 Improvement: Save reports to the `reports/` folder
 - [ ] T2 Task: Refactor bd.py into separate modules
 - [ ] R1 Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
 

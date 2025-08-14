@@ -43,8 +43,10 @@ IMPORTANT: This project uses shared planning documents so CC can track changes w
 ## Plan and Review
 First read and understand the planning documents @docs/backlog.md, @docs/project_status.md, @docs/project_overview.md, @docs/features.md, @docs/bugs.md.
 - @docs/backlog.md is where the user will record ideas to work on - check that document first!
-- Order for suggested tasks to work on: bug fixes -> low-effort "quick wins" -> Improvements -> Larger features.
-- Add unique identifiers for tasks in the @docs/backlog.md file that don't already have one.
+- When suggesting a next task, pay special attention to the section in @docs/backlog.md `# Tasks to Discuss & Plan`. Use the order of the tasks in this section to define priority. 
+- If there are no tasks in `# Tasks to Discuss & Plan` here is the order for suggested tasks to work on: bug fixes -> low-effort "quick wins" -> Improvements -> Larger features.
+- IMPORTANT: Add unique identifiers for tasks in the `@docs/backlog.md` file that don't already have one before suggesting tasks to the user.
+- Assign a **unique** number to tasks identified with a `?` (e.g. `I?` -> `I5`)
 
 ## Before Carrying out User Requests:
 - Check `@docs/backlog.md` then `@docs/project_status.md`, and suggest 3 tasks to work on. 
