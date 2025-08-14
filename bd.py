@@ -597,6 +597,7 @@ class RecordingFileParser:
     def get_recordings_for_date(self, recordings_dir: Path, target_date: str) -> List[Path]:
         """
         Get all recording files for a specific date.
+        Searches both new date-based subdirectories and legacy flat structure.
         
         Args:
             recordings_dir: Path to recordings directory
@@ -615,8 +616,17 @@ class RecordingFileParser:
         recording_files = []
         pattern = f"bark_recording_{date_pattern}_*.wav"
         
+        # Search in new date-based subdirectory (e.g., recordings/2025-08-03/)
+        date_subdir = recordings_dir / target_date
+        if date_subdir.exists():
+            for file_path in date_subdir.glob(pattern):
+                recording_files.append(file_path)
+        
+        # Search in legacy flat structure (e.g., recordings/bark_recording_20250803_*.wav)
         for file_path in recordings_dir.glob(pattern):
-            recording_files.append(file_path)
+            # Only include if it's directly in recordings_dir, not in subdirectories
+            if file_path.parent == recordings_dir:
+                recording_files.append(file_path)
         
         # Sort by timestamp in filename
         recording_files.sort(key=lambda x: self._extract_timestamp_from_filename(x.name))
@@ -2140,10 +2150,17 @@ class AdvancedBarkDetector:
         if not self.recording_data:
             return ""
         
-        # Generate filename
+        # Generate timestamp and extract date
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        
+        # Create date-based subdirectory
+        date_dir = os.path.join(self.output_dir, date_str)
+        os.makedirs(date_dir, exist_ok=True)
+        
+        # Generate filename and full path
         filename = f"bark_recording_{timestamp}.wav"
-        filepath = os.path.join(self.output_dir, filename)
+        filepath = os.path.join(date_dir, filename)
         
         # Convert recording data
         audio_data = np.concatenate(self.recording_data)

@@ -96,6 +96,21 @@
 - Preserves all detection events for recording and calibration purposes
 - Maintains backward compatibility with existing detection behavior
 
+## FEATURE: Date-Based Recording Organization
+### User Requirements
+- Organize recordings by date for better file management
+- Maintain easy access to daily recording collections
+- Support long-term evidence collection and organization
+- Preserve existing recordings without requiring migration
+### Specifications
+- **Directory Structure**: Creates date-based subdirectories in format `recordings/YYYY-MM-DD/`
+- **Automatic Organization**: New recordings automatically saved to appropriate date folder
+- **Backward Compatibility**: Maintains access to existing recordings in flat structure
+- **Dual Search Logic**: File discovery searches both new date folders and legacy flat structure
+- **Timestamp Preservation**: Maintains existing filename timestamp format for sorting
+- **Seamless Integration**: Works transparently with violation analysis and reporting features
+- **Error Handling**: Graceful handling of directory creation permissions and edge cases
+
 ## PLANNED FEATURE: Bylaw Violation Detection
 ### User Requirements
 - Automatically detect when barking meets City of Kelowna bylaw violation criteria

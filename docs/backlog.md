@@ -1,5 +1,4 @@
 # Tasks to Discuss & Plan
-- [ ] I11 Improvement: All recordings for a single day should go in their own folder.
 - [ ] I2 Improvement: Configure bark recorder with a configuration file supporting all current features.
 - [ ] I1 Improvement: Save reports to the `reports/` folder
 - [ ] T2 Task: Refactor bd.py into separate modules
@@ -27,6 +26,7 @@
 
 ## Implemented Improvements (Complete)
 - [x] I1 Improvement: reduce sensitivity of the bark detector to only begin barking when the YAMNet confidence is 0.68 or higher to avoid false positives.
+- [x] I11 Improvement: All recordings for a single day should go in their own folder.
 
 ## Implemented Features (Complete)
 - [x] F1 Feature: YAMNet ML-based bark detection system
