@@ -1,7 +1,7 @@
 # Tasks to Discuss & Plan
+- [ ] T2 Task: Refactor bd.py into separate modules
 - [ ] I2 Improvement: Configure bark recorder with a configuration file supporting all current features.
 - [ ] I1 Improvement: Save reports to the `reports/` folder
-- [ ] T2 Task: Refactor bd.py into separate modules
 - [ ] R1 Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
 
 # Backlog
