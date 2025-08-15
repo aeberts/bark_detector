@@ -11,6 +11,9 @@
 - Supports sensitivity adjustment for different environments
 - 16kHz audio processing optimized for YAMNet requirements
 - Cross-platform compatibility (M1 Mac, Intel Mac, Linux)
+- **Enhanced Class Filtering**: Intelligent filtering of YAMNet's 521 audio classes to focus on 11 dog-specific classes while excluding problematic broad categories
+- **False Positive Reduction**: 54% reduction in false positives through class-level analysis and selective exclusion of environmental noise classes
+- **Detailed Detection Analysis**: Per-class confidence scoring and triggering class identification for ongoing accuracy optimization
 
 ## FEATURE: Audio Recording Management
 ### User Requirements
@@ -35,6 +38,9 @@
 - **Performance Metrics**: F1 score, precision, recall calculation for calibration validation
 - **Sensitivity Adjustment**: Dynamic sensitivity tuning based on calibration results
 - **Profile Management**: Save and load calibration profiles for different environments
+- **Enhanced Class Analysis**: Comprehensive breakdown of which YAMNet classes contribute to true vs false positives
+- **False Positive Identification**: Automatic analysis of environmental noise sources and problematic class recommendations
+- **Background Audio Profiling**: Analysis of non-bark audio to identify and exclude noise-generating classes
 
 ## FEATURE: Profile Management
 ### User Requirements

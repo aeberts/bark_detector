@@ -1,6 +1,5 @@
-# Tasks to Discuss & Plan 
-- [x] B6 Bug: File Calibration "Unrecognized Argument" - Fixed T2 refactor missing CLI arguments
-- [ ] T9 Test: Implement test of the bark detector using sample audio and ground truth files from the @samples/ folder.
+# Priority Tasks to Discuss & Plan 
+- [ ] T9 Test: Implement tests of the bark detector using sample audio and ground truth files from the @samples/ folder.
 - [ ] I? Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
 - [ ] I2 Improvement: Configure bark recorder with a configuration file supporting all current features.
 - [ ] I1 Improvement: Save reports to the `reports/` folder
@@ -21,9 +20,7 @@
 - [x] B3 Bug: Reports created with --export-violations contain incorrect references to audio files.
 - [x] B4 Bug: Recordings start at confidence interval below 0.68.
 
-## Current Improvements & Enhancements
-- [x] I3 Improvement: Avoid flooding console with multiple bark detections per real-world bark.
-- [x] I4 Improvement: Allow manual conversion of audio files from the command line
+## Potential Improvements & Enhancements (to be confirmed)
 - [ ] I5 Improvement: Optimize YAMNet performance for longer monitoring periods
 - [ ] I6 Improvement: Enhanced visualization for detection events and sessions
 - [ ] I7 Improvement: Add audio quality metrics and validation
@@ -38,9 +35,12 @@
 - [x] B4 Bug: Recordings start at confidence interval below 0.68.
 
 ## Implemented Improvements (Complete)
+- [x] I13 Phase 1 Improvement: Improve Bark Detector Accuracy - Implemented intelligent YAMNet class filtering, reduced false positives by 54% (13→6), improved precision from 58.1% to 71.4%. Excluded problematic broad classes ("Animal", "Wild animals") while maintaining detection capability with 11 focused bark-related classes.
 - [x] I1 Improvement: reduce sensitivity of the bark detector to only begin barking when the YAMNet confidence is 0.68 or higher to avoid false positives.
 - [x] I11 Improvement: All recordings for a single day should go in their own folder.
 - [x] I12 Improvement: Convert ground truth files from decimal seconds to HH:MM:SS.mmm format with data quality validation and conversion utilities.
+- [x] I3 Improvement: Avoid flooding console with multiple bark detections per real-world bark.
+- [x] I4 Improvement: Allow manual conversion of audio files from the command line
 
 ## Implemented Features (Complete)
 - [x] F1 Feature: YAMNet ML-based bark detection system

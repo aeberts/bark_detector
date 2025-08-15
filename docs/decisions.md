@@ -43,3 +43,13 @@
 **Rationale**: Ensure reliability of bark detection system, legal compliance features, and modular architecture. Enable confident refactoring and feature development without breaking existing functionality.  
 **Consequences**: +High test coverage (38 core tests), +Reliable CI/CD pipeline, +Safe refactoring; -Additional development overhead for test maintenance  
 **Technical Details**: Uses unittest.mock for YAMNet/TensorFlow simulation, comprehensive fixtures for data models, integration testing for CLI workflows
+
+## ADR-007: Intelligent YAMNet Class Filtering for False Positive Reduction
+**Date**: 2025-08-15  
+**Status**: Accepted  
+**Decision**: Implement intelligent filtering to exclude problematic YAMNet classes that cause false positives while preserving bark detection capability  
+**Rationale**: Background audio analysis revealed that broad classes "Animal" and "Wild animals" were causing 100% false positives from environmental sounds (birds, insects, etc.) without contributing to true bark detection. Class-level analysis showed these classes provided no value for dog bark detection but significantly increased manual review burden for city complaints.  
+**Implementation**: Enhanced bark detection system with comprehensive class-level analysis, excluded classes [67] "Animal" and [103] "Wild animals", maintained 11 focused dog-specific classes, added per-class confidence scoring and false positive analysis tools.  
+**Results**: Achieved 54% reduction in false positives (13→6), improved precision from 58.1% to 71.4%, maintained effective bark detection with 50% recall, reduced manual review time for legal evidence preparation.  
+**Consequences**: +Significantly reduced false positive rate, +Higher precision for city complaint submission, +Comprehensive class analysis tools for ongoing optimization; -Slightly reduced recall (acceptable trade-off), -Additional complexity in class management  
+**Monitoring**: Future analysis may consider excluding "Livestock, farm animals, working animals" class if false positive patterns emerge

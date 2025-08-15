@@ -162,16 +162,42 @@ class AdvancedBarkDetector:
             'whimper', 'howl', 'growl', 'animal'
         ]
         
+        # Classes to exclude (too broad, cause false positives)
+        excluded_classes = [
+            'Animal',  # Too broad - catches birds, insects, etc.
+            'Wild animals',  # Too broad - environmental sounds
+            # 'Livestock, farm animals, working animals'  # May also be problematic
+        ]
+        
         self.bark_class_indices = []
+        excluded_count = 0
         logger.debug(f"Searching through {len(self.class_names)} classes for bark-related sounds")
         
         for i, class_name in enumerate(self.class_names):
             if any(keyword.lower() in class_name.lower() for keyword in bark_keywords):
-                self.bark_class_indices.append(i)
-                logger.debug(f"Found bark-related class: {i} - {class_name}")
+                # Check if this class should be excluded
+                if class_name in excluded_classes:
+                    logger.info(f"🚫 Excluding problematic class: [{i:3d}] {class_name}")
+                    excluded_count += 1
+                else:
+                    self.bark_class_indices.append(i)
+                    logger.debug(f"Found bark-related class: {i} - {class_name}")
+        
+        if excluded_count > 0:
+            logger.info(f"📊 Excluded {excluded_count} problematic classes to reduce false positives")
         
         if len(self.bark_class_indices) == 0:
             logger.warning("No bark-related classes found in YAMNet model")
+        else:
+            # Log detailed information about bark classes for analysis
+            logger.info("📋 Detected bark-related classes:")
+            for i, class_idx in enumerate(self.bark_class_indices):
+                class_name = self.class_names[class_idx]
+                logger.info(f"   {i+1:2d}. [{class_idx:3d}] {class_name}")
+    
+    def get_bark_class_names(self) -> List[str]:
+        """Get list of bark-related class names for analysis."""
+        return [self.class_names[idx] for idx in self.bark_class_indices]
     
     def audio_callback(self, in_data, frame_count, time_info, status):
         """Audio stream callback."""
@@ -350,11 +376,11 @@ class AdvancedBarkDetector:
             # Run YAMNet inference
             scores, embeddings, spectrogram = self.yamnet_model(waveform)
             
-            # Get bark-related scores
-            bark_scores = self._get_bark_scores(scores.numpy())
+            # Get bark-related scores with detailed class information
+            bark_scores, class_details = self._get_bark_scores(scores.numpy())
             
-            # Convert scores to events
-            bark_events = self._scores_to_events(bark_scores)
+            # Convert scores to events with class analysis
+            bark_events = self._scores_to_events(bark_scores, class_details)
             
             return bark_events
             
@@ -362,10 +388,15 @@ class AdvancedBarkDetector:
             logger.error(f"Error in bark detection: {e}")
             return []
     
-    def _get_bark_scores(self, scores: np.ndarray) -> np.ndarray:
-        """Extract bark-related confidence scores."""
+    def _get_bark_scores(self, scores: np.ndarray) -> tuple:
+        """Extract bark-related confidence scores with detailed class information.
+        
+        Returns:
+            tuple: (bark_scores, class_details) where class_details contains 
+                   per-frame information about which classes triggered detection
+        """
         if len(self.bark_class_indices) == 0:
-            return np.zeros(scores.shape[0])
+            return np.zeros(scores.shape[0]), []
         
         # Get scores for bark-related classes
         bark_class_scores = scores[:, self.bark_class_indices]
@@ -373,10 +404,33 @@ class AdvancedBarkDetector:
         # Take maximum score across all bark classes for each time frame
         bark_scores = np.max(bark_class_scores, axis=1)
         
-        return bark_scores
+        # Capture detailed class information for analysis
+        class_details = []
+        for frame_idx in range(scores.shape[0]):
+            frame_details = {
+                'frame': frame_idx,
+                'max_score': bark_scores[frame_idx],
+                'class_scores': {}
+            }
+            
+            # Record scores for each bark-related class
+            for i, class_idx in enumerate(self.bark_class_indices):
+                class_name = self.class_names[class_idx]
+                class_score = bark_class_scores[frame_idx, i]
+                frame_details['class_scores'][class_name] = float(class_score)
+            
+            # Identify which class(es) achieved the maximum score
+            max_score_indices = np.where(bark_class_scores[frame_idx] == bark_scores[frame_idx])[0]
+            frame_details['triggering_classes'] = [
+                self.class_names[self.bark_class_indices[idx]] for idx in max_score_indices
+            ]
+            
+            class_details.append(frame_details)
+        
+        return bark_scores, class_details
     
-    def _scores_to_events(self, bark_scores: np.ndarray) -> List[BarkEvent]:
-        """Convert YAMNet scores to bark events."""
+    def _scores_to_events(self, bark_scores: np.ndarray, class_details: List[dict]) -> List[BarkEvent]:
+        """Convert YAMNet scores to bark events with class analysis."""
         # YAMNet produces one prediction every 0.48 seconds
         time_per_frame = 0.48
         
@@ -395,32 +449,70 @@ class AdvancedBarkDetector:
             if bark_frames[i] == current_end + 1:
                 current_end = bark_frames[i]
             else:
-                # Create event from current group
-                start_time = current_start * time_per_frame
-                end_time = (current_end + 1) * time_per_frame
-                confidence = float(np.mean(bark_scores[current_start:current_end+1]))
-                
-                events.append(BarkEvent(
-                    start_time=start_time,
-                    end_time=end_time,
-                    confidence=confidence
-                ))
+                # Create event from current group with class analysis
+                event = self._create_event_with_class_info(
+                    current_start, current_end, time_per_frame, bark_scores, class_details
+                )
+                events.append(event)
                 
                 current_start = bark_frames[i]
                 current_end = bark_frames[i]
         
         # Don't forget the last group
-        start_time = current_start * time_per_frame
-        end_time = (current_end + 1) * time_per_frame
-        confidence = float(np.mean(bark_scores[current_start:current_end+1]))
-        
-        events.append(BarkEvent(
-            start_time=start_time,
-            end_time=end_time,
-            confidence=confidence
-        ))
+        event = self._create_event_with_class_info(
+            current_start, current_end, time_per_frame, bark_scores, class_details
+        )
+        events.append(event)
         
         return events
+    
+    def _create_event_with_class_info(self, start_frame: int, end_frame: int, 
+                                     time_per_frame: float, bark_scores: np.ndarray, 
+                                     class_details: List[dict]) -> BarkEvent:
+        """Create a BarkEvent with detailed class analysis information."""
+        start_time = start_frame * time_per_frame
+        end_time = (end_frame + 1) * time_per_frame
+        confidence = float(np.mean(bark_scores[start_frame:end_frame+1]))
+        
+        # Analyze class information for this event
+        event_frames = range(start_frame, end_frame + 1)
+        all_triggering_classes = set()
+        class_confidence_sums = {}
+        frame_count = 0
+        
+        for frame_idx in event_frames:
+            if frame_idx < len(class_details):
+                frame_info = class_details[frame_idx]
+                
+                # Collect triggering classes
+                all_triggering_classes.update(frame_info.get('triggering_classes', []))
+                
+                # Sum confidence scores for averaging
+                for class_name, score in frame_info.get('class_scores', {}).items():
+                    if class_name not in class_confidence_sums:
+                        class_confidence_sums[class_name] = 0.0
+                    class_confidence_sums[class_name] += score
+                
+                frame_count += 1
+        
+        # Calculate average confidence scores per class
+        class_confidences = {}
+        if frame_count > 0:
+            for class_name, total_score in class_confidence_sums.items():
+                class_confidences[class_name] = total_score / frame_count
+        
+        # Log detailed detection information for analysis
+        logger.debug(f"Detection at {start_time:.2f}-{end_time:.2f}s: "
+                    f"confidence={confidence:.3f}, "
+                    f"triggering_classes={list(all_triggering_classes)}")
+        
+        return BarkEvent(
+            start_time=start_time,
+            end_time=end_time,
+            confidence=confidence,
+            triggering_classes=list(all_triggering_classes),
+            class_confidences=class_confidences
+        )
     
     def _calculate_event_intensity(self, audio_data: np.ndarray, event: BarkEvent) -> float:
         """Calculate intensity for a bark event."""

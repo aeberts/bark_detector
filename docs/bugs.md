@@ -1,8 +1,5 @@
 # BUG: File Calibration "Unrecognized Argument --calibrate-files" (RESOLVED)
 
-## BUG Solution plan
-
-
 
 ## Bug Repro Steps
 

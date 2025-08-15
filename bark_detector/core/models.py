@@ -134,6 +134,9 @@ class BarkEvent:
     end_time: float
     confidence: float
     intensity: float = 0.0
+    # Class analysis fields for debugging false positives
+    triggering_classes: Optional[List[str]] = None  # Which YAMNet classes triggered this detection
+    class_confidences: Optional[dict] = None  # Confidence scores by class name
 
 
 @dataclass
