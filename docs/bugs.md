@@ -1,3 +1,74 @@
+# BUG: Error Saving recording: ERROR - Error: zero-dimensional arrays cannot be concatenated (RESOLVED - 2025-08-14)
+
+## Root Cause Analysis
+
+**Problem**: NumPy concatenation error occurs when pressing Ctrl+C during bark detection monitoring, preventing final recording from being saved.
+
+**Root Cause**: Inconsistency in how audio data is stored in `self.recording_data` between the original and refactored versions:
+
+1. **Original Implementation**: Uses `self.recording_data.append(audio_data)` - creates a list of NumPy arrays
+2. **Refactored Implementation**: Uses `self.recording_data.extend(audio_data)` - flattens arrays into a flat list of samples
+3. **Problem**: When `np.concatenate()` is called on a flat list of samples instead of a list of arrays, NumPy fails with "zero-dimensional arrays cannot be concatenated"
+
+**Solution**:
+- **Line 247**: Changed `self.recording_data.extend(audio_data)` to `self.recording_data.append(audio_data)`
+- **Line 497**: Added robust error handling and edge case protection in `save_recording()`
+- **Safety Checks**: Added validation for empty recordings, single chunks, and concatenation errors
+
+**Files Modified**:
+- `/Users/zand/dev/bark_detector/bark_detector/core/detector.py`: Fixed data storage method and added comprehensive error handling
+
+**Status**: ✅ Bug fixed - recordings now save successfully during normal operation and when interrupted with Ctrl+C
+
+## Original Error Log:
+Found in log after pressing Control+C:
+2025-08-14 16:19:57,944 - ERROR - Error: zero-dimensional arrays cannot be concatenated
+
+# BUG: BD.py exits immediately after starting the program. (RESOLVED - 2025-08-14)
+
+## Root Cause Analysis
+
+**Problem**: The refactored `bd.py` exited immediately after displaying startup messages, despite showing "Bark detection monitoring started..."
+
+**Root Cause**: The `start_monitoring()` method in the refactored `AdvancedBarkDetector` class was a placeholder that only logged a message and immediately returned with `pass`. It lacked the actual monitoring loop implementation that was present in the original 3,111-line file.
+
+**Solution**: 
+- Extracted complete monitoring loop implementation from `bd_original.py`
+- Added PyAudio stream setup and audio callback methods
+- Implemented the `while self.is_running: time.sleep(0.1)` loop to keep program alive
+- Added all supporting methods: `_detect_barks_in_buffer()`, `_get_bark_scores()`, `save_recording()`, etc.
+- Proper cleanup and Ctrl+C handling with graceful shutdown
+
+**Status**: ✅ Fixed - Program now stays running during monitoring and properly handles keyboard interrupts.
+
+## Original Error Output:
+
+(bark_detector) ➜  bark_detector git:(main) ✗ uv run bd.py
+/Users/zand/dev/bark_detector/.venv/lib/python3.11/site-packages/tensorflow_hub/__init__.py:61: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+2025-08-14 15:50:02,319 - INFO - ======================================================================
+2025-08-14 15:50:02,319 - INFO - Advanced YAMNet Bark Detector v3.0
+2025-08-14 15:50:02,319 - INFO - ML-based Detection with Legal Evidence Collection
+2025-08-14 15:50:02,319 - INFO - ======================================================================
+2025-08-14 15:50:02,319 - INFO - Downloading YAMNet model (this may take a few minutes on first run)...
+2025-08-14 15:50:02,319 - INFO - Using /var/folders/8x/yr8h7zks5r98fq1rs4n9ythc0000gn/T/tfhub_modules to cache modules.
+2025-08-14 15:50:03,517 - INFO - YAMNet model downloaded successfully!
+2025-08-14 15:50:03,518 - INFO - Loading class names...
+2025-08-14 15:50:03,524 - INFO - YAMNet model loaded successfully!
+2025-08-14 15:50:03,524 - INFO - Model supports 521 audio classes
+2025-08-14 15:50:03,524 - INFO - Found 13 bark-related classes
+2025-08-14 15:50:03,524 - INFO - Advanced Bark Detector initialized:
+2025-08-14 15:50:03,524 - INFO -   Sensitivity: 0.68
+2025-08-14 15:50:03,524 - INFO -   Sample Rate: 16000 Hz
+2025-08-14 15:50:03,524 - INFO -   Session Gap Threshold: 10.0s
+2025-08-14 15:50:03,524 - INFO -   Quiet Duration: 30.0s
+2025-08-14 15:50:03,524 - INFO -   Output Directory: recordings
+2025-08-14 15:50:03,524 - INFO - 🐕 Starting bark detection...
+2025-08-14 15:50:03,524 - INFO - 🎛️ Sensitivity: 0.68
+2025-08-14 15:50:03,524 - INFO - Press Ctrl+C to stop
+2025-08-14 15:50:03,524 - INFO - Bark detection monitoring started...
+(bark_detector) ➜  bark_detector git:(main)  # Program exited immediately here
+
 # BUG: Recordings start at confidence interval below 0.68 (IDENTIFIED - Root Cause Found)
 
 ## Root Cause Analysis

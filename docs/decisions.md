@@ -35,3 +35,11 @@
 **Decision**: Move to JSON configuration file for all settings  
 **Rationale**: Better user experience, persistent settings, easier profile management  
 **Consequences**: +User-friendly, +Persistent config; -Additional file management
+
+## ADR-006: Comprehensive Testing Infrastructure
+**Date**: 2025-08-14  
+**Status**: Accepted  
+**Decision**: Implement pytest-based testing with sophisticated mocking for ML components  
+**Rationale**: Ensure reliability of bark detection system, legal compliance features, and modular architecture. Enable confident refactoring and feature development without breaking existing functionality.  
+**Consequences**: +High test coverage (38 core tests), +Reliable CI/CD pipeline, +Safe refactoring; -Additional development overhead for test maintenance  
+**Technical Details**: Uses unittest.mock for YAMNet/TensorFlow simulation, comprehensive fixtures for data models, integration testing for CLI workflows

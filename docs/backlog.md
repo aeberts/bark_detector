@@ -1,5 +1,4 @@
 # Tasks to Discuss & Plan
-- [ ] T2 Task: Refactor bd.py into separate modules
 - [ ] I2 Improvement: Configure bark recorder with a configuration file supporting all current features.
 - [ ] I1 Improvement: Save reports to the `reports/` folder
 - [ ] R1 Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
@@ -7,6 +6,14 @@
 # Backlog
 
 ## Bugs
+2025-08-14 16:19:57,944 - ERROR - Error: zero-dimensional arrays cannot be concatenated
+
+## Fixed Bugs (Completed)
+- [x] B5 Bug: BD.py exits immediately after starting the program - Fixed incomplete refactoring where monitoring loop was not implemented
+- [x] B1 Bug: YAMNet Error when starting the project.
+- [x] B2 Bug: Error saving violations database.
+- [x] B3 Bug: Reports created with --export-violations contain incorrect references to audio files.
+- [x] B4 Bug: Recordings start at confidence interval below 0.68.
 
 ## Current Improvements & Enhancements
 - [x] I3 Improvement: Avoid flooding console with multiple bark detections per real-world bark.
@@ -18,7 +25,7 @@
 - [ ] I9 Improvement: Add configurable detection thresholds per dog breed/size
 - [ ] I10 Improvement: Create web-based interface for remote monitoring
 
-## Fixed Bugs (Completed)
+## Previously Fixed Bugs (Completed)
 - [x] B1 Bug: YAMNet Error when starting the project.
 - [x] B2 Bug: Error saving violations database.
 - [x] B3 Bug: Reports created with --export-violations contain incorrect references to audio files.
@@ -52,8 +59,12 @@
 - [ ] F17 Feature: Auto-start monitoring at specified times with saved profiles
 - [ ] F18 Feature: Build persistent monitoring for multi-day evidence collection
 
-### Technical Debt & Maintenance
+### Technical Debt & Maintenance (Completed)
+- [x] T2 Task: Refactor bd.py into separate modules
 - [x] T3 Task: Implement error handling for TensorFlow model loading failures
+- [x] T8 Task: Implement comprehensive project testing plan with 4-phase approach covering core detection, legal compliance, and integration testing (38/38 tests passing)
+
+### Technical Debt & Maintenance (Remaining)
 - [ ] T4 Task: Add comprehensive unit tests for calibration system
 - [ ] T5 Task: Add logging configuration management
 - [ ] T6 Task: Create automated deployment scripts for different platforms

@@ -1,0 +1,1 @@
+"""Tests for core bark detection functionality"""
