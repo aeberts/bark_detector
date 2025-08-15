@@ -3,7 +3,7 @@
 Backwards-compatible entry point for bark detector.
 This file maintains compatibility with existing scripts and usage patterns.
 
-For new development, use: python -m bark_detector
+For new development, use: uv run python -m bark_detector
 """
 
 import warnings
@@ -19,7 +19,7 @@ try:
     
     # Provide backwards compatibility warning
     warnings.warn(
-        "Using bd.py directly is deprecated. Use 'python -m bark_detector' instead.",
+        "Using bd.py directly is deprecated. Use 'uv run python -m bark_detector' instead.",
         DeprecationWarning,
         stacklevel=2
     )

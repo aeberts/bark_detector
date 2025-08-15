@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 2025-08-15
+
+### Bug Fixes
+- B6: Fixed CLI arguments missing after T2 refactor. Restored 11 critical CLI arguments that were removed during modular architecture transition including --calibrate-files, --audio-files, --ground-truth-files, --save-profile, --convert-files, --convert-directory, --list-violations, --record, --duration, --create-template, --sensitivity-range, and --steps. Implemented complete handlers for all argument types using test-driven development. User's file-based calibration workflows now function correctly.
+
+### Improvements
+- I12: Implemented comprehensive ground truth format conversion from decimal seconds to HH:MM:SS.mmm format. Added time conversion utilities with flexible format parsing (HH:MM:SS.mmm, MM:SS.mmm, SS.mmm), enhanced GroundTruthEvent model with dual format support and validation, created batch conversion script with data quality fixes, and updated all tests. Improved data integrity by fixing inverted timestamps and duration confusion in sample files. All 60 tests passing.
+
 ## 2025-08-14
 
 ### Major Refactoring

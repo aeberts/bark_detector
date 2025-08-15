@@ -8,21 +8,43 @@ This file provides guidance to Claude Code (claude.ai/code) aka `CC` when workin
 ## Technology Approach
 - The system will use Machine Learning (ML) libraries to detect barking. The development platform is an M1-based Mac and it will be deployed on a single Intel-based Mac.
 - The system will start recording when the ML detector is triggered and will continue to record until 30 seconds pass without barking being detected.
+- **Package Manager**: This project uses `uv` for Python package management. Always prefix Python commands with `uv run` (e.g., `uv run pytest`, `uv run python -m bark_detector`).
 
 # Project Structure
 IMPORTANT: This project uses shared planning documents so CC can track changes with the user across sessions and so CC can effectively delegate tasks to subagents.
 
-- @ bd.py - main implementation file.
-- @ install.py - custom install script which detects installation platform (Intel-Mac or M1 Mac)
-- @ README.md - User-facing information about the project, installation, how to run the program, configuration, usage examples, additional notes.
-- @ CHANGELOG.md - Record of development changes. Keep updates to this file as succinct as possible.
-- @ docs/project_overview.md - project description, goals, background, domain notes, references.
-- @ docs/features.md - feature requirements and specs.
-- @ docs/backlog.md - Unplanned tasks, Planned tasks and features (including status), completed tasks
-- @ docs/bugs.md - Additional notes about bugs mentioned in backlog.md
-- @ requirements-apple-silicon.txt - M1 Mac package requirements for installation
-- @ requirements-fallback.txt - Fallback requirements if the other requirements files do not load
-- @ requirements-intel.txt - Intel-Mac package requirements for installation
+## Core Implementation
+- @ bd.py - backwards compatibility wrapper and legacy entry point (deprecated, use `uv run python -m bark_detector`)
+- @ bd_original.py - original monolithic implementation prior to T2 refactoring (reference for missing features)
+- @ bark_detector/ - modern modular package structure (core/, calibration/, legal/, recording/, utils/)
+- @ tests/ - comprehensive test suite (45 tests covering all modules with sophisticated ML/audio mocking)
+- @ install.py - cross-platform install script (Intel-Mac vs M1 Mac detection)
+
+## Documentation, Planning and Tracking
+- @ README.md - user-facing project information, installation, usage
+- @ CHANGELOG.md - development change log (keep succinct)
+- @ docs/backlog.md - task tracking (unplanned, planned, completed)
+- @ docs/features.md - feature requirements and specifications
+- @ docs/project_overview.md - project description, goals, domain knowledge
+- @ docs/project_status.md - current project phase and status summary
+- @ docs/bugs.md - bug details and logs
+- @ docs/decisions.md - architecture decision records
+- @ docs/tests.md - details of tests to implement
+- @ docs/improvements.md - details of improvements to implement
+
+## Platform Requirements
+- @ requirements-apple-silicon.txt - M1 Mac dependencies
+- @ requirements-intel.txt - Intel Mac dependencies  
+- @ requirements-fallback.txt - fallback requirements
+
+# Development Commands
+**Important**: This project uses `uv` for package management. Always use `uv run` prefix:
+
+- **Run application**: `uv run python -m bark_detector` (modern) or `uv run bd.py` (legacy)
+- **Run tests**: `uv run pytest tests/` or `uv run pytest tests/test_calibration/ -v`
+- **Install dependencies**: `uv run install.py` (automatic platform detection)
+- **Add packages**: `uv add package_name`
+- **Audio conversion**: `uv run python -m bark_detector --convert-all 2025-08-03`
 
 # Progress Tracking
 - Track project status in the @docs/backlog.md file. Use ASCII text only - don't use emoji.
@@ -34,40 +56,46 @@ IMPORTANT: This project uses shared planning documents so CC can track changes w
 - User Stories: Read @docs/templates/user_story_template.md
 - Architecture Decisions: Record in @docs/decisions.md
 
+# Common Workflow Tasks
+
+## ID Assignment
+- Assign unique IDs to any tasks marked with `?` (e.g., `I?` → `I5`)
+
+## Document Reading Priority
+- Always check @docs/backlog.md `# Tasks to Discuss & Plan` for active priorities.
+- Reference @docs/features.md for existing requirements when planning
+- Check @docs/bugs.md for bug details and logs
+
+## Task Completion Updates
+- Mark task complete in @docs/backlog.md (move to completed section)
+- Add brief summary to @CHANGELOG.md
+- Update @docs/decisions.md with reasoning for changes
+
 # Development Workflow
 
-## Session Startup
-1. Review @docs/backlog.md for active priorities
-2. Check @docs/project_status.md for current state
+## Session Startup (only if user asks for task suggestions)
+- **Apply**: Document Reading Priority and ID Assignment (see Common Workflow Tasks)
+- Review @docs/backlog.md `# Tasks to Discuss & Plan` section for priorities
+- Check @docs/project_status.md for current state  
+- Suggest 3 tasks by ID from @docs/backlog.md (e.g., "I2", "T1", "F12") and brief description
 
-## Plan and Review
-First read and understand the planning documents @docs/backlog.md, @docs/project_status.md, @docs/project_overview.md, @docs/features.md, @docs/bugs.md.
-- @docs/backlog.md is where the user will record ideas to work on - check that document first!
-- When suggesting a next task, pay special attention to the section in @docs/backlog.md `# Tasks to Discuss & Plan`. Use the order of the tasks in this section to define priority. 
-- If there are no tasks in `# Tasks to Discuss & Plan` here is the order for suggested tasks to work on: bug fixes -> low-effort "quick wins" -> Improvements -> Larger features.
-- IMPORTANT: Add unique identifiers for tasks in the `@docs/backlog.md` file that don't already have one before suggesting tasks to the user.
-- Assign a **unique** number to tasks identified with a `?` (e.g. `I?` -> `I5`)
+## Task Planning (for new features/improvements)
+**Only when user requests new work requiring planning:**
+- **Apply**: Document Reading Priority and ID Assignment (see Common Workflow Tasks)
+- If missing requirements: plan the feature (ask clarifying questions if needed)
+- Use @docs/templates/prd_template.md or @docs/user_story_template.md as guides
+- Keep planning minimal (think MVP)
+- Present plan and wait for user approval before proceeding
+- Update @docs/features.md with approved requirements
 
-## Before Carrying out User Requests:
-- Check `@docs/backlog.md` then `@docs/project_status.md`, and suggest 3 tasks to work on. 
-- Present tasks using their numbered identifiers (e.g., "I2", "T1", "F12" as well as their brief description).
-- For bugs, check the `@docs/bugs.md` file for bug details and logs.
-- For tasks, check `@docs/features.md` to see if requirements have been created for the task you have been asked to work on.
-- If there are no details in `@docs/features.md` or the other planning documents for the task, plan the feature (ask the user clarifying questions if necessary) and record any relevant discussions and decisions to the requirements or specification for that feature in `docs/features.md` using `@docs/templates/prd_template.md`, `@docs/templates/user_story_template.md` as necessary.
-- Don't overplan - think MVP.
-- Once you have presented the plan, stop and wait for the user to approve it. Do not continue until the user has approved the plan.
-- Once the plan has been approved, update @docs/features.md with the feature requirements,  specifications and decisions.
+## During Implementation
+- Use TodoWrite tool to track multi-step tasks
+- Update todo status in real-time (pending → in_progress → completed)
+- For complex work: provide progress updates every 2-3 steps
+- If discovering better approach: pause and ask user approval
+- Document technical decisions in @docs/decisions.md
 
-## While implementing:
-- Update todo list status in real-time (mark in_progress → completed)
-- If you discover a better approach, pause and ask user approval before 
-changing course
-- For complex tasks, provide progress updates every 2-3 completed steps
-- Document any technical decisions or workarounds in @docs/decisions.md
-
-## After completing work:
-- Update the task status in @docs/backlog.md and move the task to a completed section.
-- Update the @CHANGELOG.md file with a short summary of the work completed.
-- Update the @docs/decisions.md file with a summary of the work completed including reasoning for the change.
-- Update @docs/project_overview.md if there were any significant changes to the architecture or approach.
-- Update the #Claude Suggested Improvements section of @docs/backlog.md with any suggested future tasks.
+## After Completion
+**Required updates after any work:**
+- **Apply**: Task Completion Updates (see Common Workflow Tasks)
+- If architecture changed: update @docs/project_overview.md

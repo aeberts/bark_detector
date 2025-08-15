@@ -1,3 +1,23 @@
+# BUG: File Calibration "Unrecognized Argument --calibrate-files" (RESOLVED)
+
+## BUG Solution plan
+
+
+
+## Bug Repro Steps
+
+(bark_detector) ➜  bark_detector git:(main) uv run bd.py --calibrate-files \
+--audio-files samples/bark_recording_20250727_134707_bark.wav samples/bark_recording_20250727_141319_bark.wav samples/background.wav \
+--ground-truth-files samples/bark_recording_20250727_134707_bark_ground_truth.json samples/bark_recording_20250727_141319_bark_ground_truth.json \
+--save-profile ww-file-calibration
+/Users/zand/dev/bark_detector/.venv/lib/python3.11/site-packages/tensorflow_hub/__init__.py:61: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+usage: bd.py [-h] [--sensitivity SENSITIVITY] [--output-dir OUTPUT_DIR] [--profile PROFILE] [--save-profile SAVE_PROFILE] [--list-profiles] [--calibrate CALIBRATE] [--calibrate-realtime]
+             [--analyze-violations ANALYZE_VIOLATIONS] [--violation-report START_DATE END_DATE] [--export-violations EXPORT_VIOLATIONS] [--convert-all CONVERT_ALL] [--list-convertible LIST_CONVERTIBLE]
+             [--manual-record]
+bd.py: error: unrecognized arguments: --calibrate-files --audio-files samples/bark_recording_20250727_134707_bark.wav samples/bark_recording_20250727_141319_bark.wav samples/background.wav --ground-truth-files samples/bark_recording_20250727_134707_bark_ground_truth.json samples/bark_recording_20250727_141319_bark_ground_truth.json
+(bark_detector) ➜  bark_detector git:(main) 
+
 # BUG: Error Saving recording: ERROR - Error: zero-dimensional arrays cannot be concatenated (RESOLVED - 2025-08-14)
 
 ## Root Cause Analysis

@@ -16,6 +16,7 @@
 
 ### 4. **Verify Environment**
 - Confirm working directory and git status
+- Confirm python virtual environment is activated for current project
 - Check if any tests or builds need to be run
 
 ### 5. **Clarify Next Steps**

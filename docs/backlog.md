@@ -1,14 +1,20 @@
-# Tasks to Discuss & Plan
+# Tasks to Discuss & Plan 
+- [x] B6 Bug: File Calibration "Unrecognized Argument" - Fixed T2 refactor missing CLI arguments
+- [ ] T9 Test: Implement test of the bark detector using sample audio and ground truth files from the @samples/ folder.
+- [ ] I? Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
 - [ ] I2 Improvement: Configure bark recorder with a configuration file supporting all current features.
 - [ ] I1 Improvement: Save reports to the `reports/` folder
 - [ ] R1 Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
 
 # Backlog
 
+## Tests
+
 ## Bugs
 2025-08-14 16:19:57,944 - ERROR - Error: zero-dimensional arrays cannot be concatenated
 
 ## Fixed Bugs (Completed)
+- [x] B6 Bug: File Calibration "Unrecognized Argument" - Fixed T2 refactor missing CLI arguments. Restored 11 missing CLI arguments including --calibrate-files, --audio-files, --ground-truth-files, --save-profile and others.
 - [x] B5 Bug: BD.py exits immediately after starting the program - Fixed incomplete refactoring where monitoring loop was not implemented
 - [x] B1 Bug: YAMNet Error when starting the project.
 - [x] B2 Bug: Error saving violations database.
@@ -34,6 +40,7 @@
 ## Implemented Improvements (Complete)
 - [x] I1 Improvement: reduce sensitivity of the bark detector to only begin barking when the YAMNet confidence is 0.68 or higher to avoid false positives.
 - [x] I11 Improvement: All recordings for a single day should go in their own folder.
+- [x] I12 Improvement: Convert ground truth files from decimal seconds to HH:MM:SS.mmm format with data quality validation and conversion utilities.
 
 ## Implemented Features (Complete)
 - [x] F1 Feature: YAMNet ML-based bark detection system

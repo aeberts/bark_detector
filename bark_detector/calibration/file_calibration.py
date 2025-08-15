@@ -34,12 +34,12 @@ class FileBasedCalibration:
             
             events = []
             for event_data in gt_data.get('events', []):
-                events.append(GroundTruthEvent(
-                    start_time=event_data['start_time'],
-                    end_time=event_data['end_time'],
-                    description=event_data.get('description', ''),
-                    confidence_expected=event_data.get('confidence_expected', 1.0)
-                ))
+                try:
+                    # Use from_dict for better format handling and validation
+                    events.append(GroundTruthEvent.from_dict(event_data))
+                except ValueError as e:
+                    logger.warning(f"Skipping invalid ground truth event in {ground_truth_path}: {e}")
+                    continue
             
         elif ground_truth_events:
             events = ground_truth_events
