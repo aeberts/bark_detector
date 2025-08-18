@@ -9,6 +9,7 @@ Follow this planning workflow:
 - Review the CLAUDE.md file to understand the current planning workflow and project context
 - Review the task overview from @docs/backlog.md for the specified task ID
 - Review the @docs/features.md file for any existing feature specifications for the task
+- Review the @docs/improvements.md file for existing feature specifications for improvements
 
 **Technical Planning**
 - Break down the task into specific implementation steps

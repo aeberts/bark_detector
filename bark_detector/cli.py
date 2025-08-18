@@ -81,6 +81,8 @@ Examples:
                         help='Export violations to CSV file')
     parser.add_argument('--list-violations', action='store_true',
                         help='List all detected violations')
+    parser.add_argument('--enhanced-violation-report', type=str,
+                        help='Generate enhanced violation report from logs (date: YYYY-MM-DD)')
     
     # Audio file processing
     parser.add_argument('--convert-all', type=str,
@@ -448,6 +450,58 @@ def main():
                     
             except Exception as e:
                 logger.error(f"Violation report failed: {e}")
+                return 1
+            return
+        
+        if args.enhanced_violation_report:
+            from .utils.report_generator import LogBasedReportGenerator
+            from datetime import datetime
+            from pathlib import Path
+            
+            try:
+                # Parse date
+                logger.info(f"📅 Parsing date: {args.enhanced_violation_report}")
+                target_date = datetime.strptime(args.enhanced_violation_report, '%Y-%m-%d').date()
+                logger.info(f"📅 Parsed successfully: {target_date}")
+                
+                logger.info(f"📊 Generating enhanced violation report from logs for {target_date}...")
+                
+                # Create report generator
+                report_generator = LogBasedReportGenerator()
+                
+                # Generate reports
+                reports = report_generator.generate_reports_for_date(target_date)
+                
+                if "error" in reports:
+                    logger.error(f"❌ {reports['error']}")
+                    return 1
+                
+                # Create reports directory
+                reports_dir = Path("reports") / f"enhanced-{target_date}"
+                reports_dir.mkdir(parents=True, exist_ok=True)
+                
+                # Save reports
+                for report_name, report_content in reports.items():
+                    if report_name != "error":
+                        report_file = reports_dir / f"{report_name}.txt"
+                        with open(report_file, 'w', encoding='utf-8') as f:
+                            f.write(report_content)
+                        logger.info(f"📝 Generated: {report_file}")
+                
+                logger.info(f"✅ Enhanced violation reports saved to: {reports_dir}")
+                logger.info("📊 Reports include:")
+                logger.info("   - Time-of-day formatted violation summary")
+                logger.info("   - Per-audio-file bark analysis") 
+                logger.info("   - Detailed violation breakdowns")
+                
+            except ValueError as e:
+                logger.error(f"❌ Date parsing error: {e}")
+                logger.error(f"❌ Invalid date format: {args.enhanced_violation_report}. Use YYYY-MM-DD")
+                return 1
+            except Exception as e:
+                logger.error(f"Enhanced violation report failed: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 return 1
             return
         

@@ -2,6 +2,9 @@
 
 import logging
 import numpy as np
+import os
+from datetime import datetime
+from pathlib import Path
 
 
 def convert_numpy_types(obj):
@@ -35,19 +38,38 @@ def convert_numpy_types(obj):
         return obj
 
 
-def setup_logging(log_file='bark_detector.log'):
+def setup_logging(log_file='bark_detector.log', use_date_folders=True):
     """
-    Configure logging for the bark detector system.
+    Configure logging for the bark detector system with optional date-based organization.
     
     Args:
-        log_file: Path to the log file
+        log_file: Path to the log file (used as base name if use_date_folders=True)
+        use_date_folders: If True, organize logs in logs/YYYY-MM-DD/ folders
     """
+    if use_date_folders:
+        # Create date-based log organization
+        today = datetime.now().strftime('%Y-%m-%d')
+        logs_dir = Path('logs') / today
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Extract base filename without extension for date-based naming
+        base_name = Path(log_file).stem
+        log_file_path = logs_dir / f"{base_name}-{today}.log"
+    else:
+        # Use original behavior for backward compatibility
+        log_file_path = log_file
+    
+    # Clear any existing handlers to avoid duplicates
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler(log_file),
+            logging.FileHandler(log_file_path),
             logging.StreamHandler()
-        ]
+        ],
+        force=True  # Force reconfiguration
     )
     return logging.getLogger(__name__)
