@@ -11,15 +11,20 @@ import warnings
 import sys
 from pathlib import Path
 
-# Configure TensorFlow logging suppression early (before any TensorFlow imports)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress all TensorFlow logging except errors
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations logging
-warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow_hub')
-warnings.filterwarnings('ignore', message='pkg_resources is deprecated*')
-warnings.filterwarnings('ignore', category=UserWarning, message='.*pkg_resources.*')
-
 # Add the current directory to Python path to ensure package can be found
 sys.path.insert(0, str(Path(__file__).parent))
+
+# Apply comprehensive TensorFlow logging suppression early (critical for Intel Macs)
+try:
+    from bark_detector.utils.tensorflow_suppression import suppress_tensorflow_logging
+    suppress_tensorflow_logging()
+except ImportError:
+    # Fallback configuration if utility not available
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+    os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow_hub')
 
 try:
     from bark_detector.cli import main

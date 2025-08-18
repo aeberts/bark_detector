@@ -11,31 +11,21 @@ from datetime import datetime
 from typing import Optional, List
 from pathlib import Path
 
+# Apply comprehensive TensorFlow logging suppression (critical for Intel Macs)
+from ..utils.tensorflow_suppression import suppress_tensorflow_logging, configure_tensorflow_after_import
+suppress_tensorflow_logging()
+
 import numpy as np
 import pyaudio
 import tensorflow as tf
 import tensorflow_hub as hub
 
-# Set TensorFlow logging level to ERROR only (suppress debug info)
-tf.get_logger().setLevel('ERROR')
+# Configure TensorFlow after import
+configure_tensorflow_after_import()
 
 from .models import BarkEvent, BarkingSession
 from ..utils.helpers import convert_numpy_types
 from ..legal.tracker import LegalViolationTracker
-
-# Configure TensorFlow logging to suppress debug output
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress all TensorFlow logging except errors
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations logging
-import warnings
-warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow_hub')
-warnings.filterwarnings('ignore', message='pkg_resources is deprecated*')
-warnings.filterwarnings('ignore', category=UserWarning, message='.*pkg_resources.*')
-
-# Additional TensorFlow configuration for suppressing debug output
-try:
-    tf.config.experimental.enable_op_determinism()
-except Exception:
-    pass  # May not be available in all TensorFlow versions
 
 logger = logging.getLogger(__name__)
 
