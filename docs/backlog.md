@@ -1,5 +1,4 @@
 # Priority Tasks to Discuss & Plan 
-- [ ] T9 Test: Implement tests of the bark detector using sample audio and ground truth files from the @samples/ folder.
 - [ ] I4 Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
 - [ ] I1 Improvement: Save reports to the `reports/` folder
 - [ ] R1 Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
@@ -70,6 +69,7 @@
 - [x] T2 Task: Refactor bd.py into separate modules
 - [x] T3 Task: Implement error handling for TensorFlow model loading failures
 - [x] T8 Task: Implement comprehensive project testing plan with 4-phase approach covering core detection, legal compliance, and integration testing (38/38 tests passing)
+- [x] T9 Task: Implement tests of the bark detector using sample audio and ground truth files - Created comprehensive sample-based testing infrastructure using real audio recordings with precise ground truth annotations. Implemented SampleDataLoader and DetectionEvaluator with 1-second tolerance windows and 0.65+ confidence thresholds. Added 12 comprehensive tests covering individual sample accuracy, multi-sample analysis, confidence threshold compliance, false positive monitoring, and regression protection. System achieves 77.6% F1 score overall with 100% precision and 63.3% recall across all samples. All 123 tests passing.
 - [x] T10 Task: Enhanced legal and analysis module test coverage - Fixed violation analysis system to use advanced YAMNet bark detection instead of simple file duration checks. Added comprehensive sporadic violation detection (15+ minutes across multiple sessions within 5-minute gaps). Fixed all test mocks to properly integrate with enhanced bark detector API. All 111 tests passing with full violation analysis integration coverage.
 
 ### Technical Debt & Maintenance (Remaining)
