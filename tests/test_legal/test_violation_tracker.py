@@ -16,14 +16,14 @@ class TestLegalViolationTracker:
     
     def test_initialization(self):
         """Test basic tracker initialization"""
-        tracker = LegalViolationTracker()
+        tracker = LegalViolationTracker(interactive=False)
         
         assert tracker.violations == []
         assert tracker.sessions == []
     
     def test_analyze_violations_continuous(self):
         """Test analysis of continuous violations (5+ minutes)"""
-        tracker = LegalViolationTracker()
+        tracker = LegalViolationTracker(interactive=False)
         
         # Create a long continuous barking session (6 minutes)
         long_session = BarkingSession(
@@ -63,7 +63,7 @@ class TestLegalViolationTracker:
     @patch('librosa.load')
     def test_analyze_recordings_for_date(self, mock_librosa_load, temp_dir):
         """Test analyzing recordings for a specific date"""
-        tracker = LegalViolationTracker()
+        tracker = LegalViolationTracker(interactive=False)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
@@ -95,7 +95,7 @@ class TestLegalViolationTracker:
     @patch('librosa.load')
     def test_analyze_recordings_no_violations(self, mock_librosa_load, temp_dir):
         """Test analyzing recordings with no violations"""
-        tracker = LegalViolationTracker()
+        tracker = LegalViolationTracker(interactive=False)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
@@ -121,7 +121,7 @@ class TestLegalViolationTracker:
     
     def test_analyze_recordings_no_files(self, temp_dir):
         """Test analyzing recordings when no files exist"""
-        tracker = LegalViolationTracker()
+        tracker = LegalViolationTracker(interactive=False)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
@@ -133,7 +133,7 @@ class TestLegalViolationTracker:
     @patch('librosa.load')
     def test_analyze_recordings_flat_structure(self, mock_librosa_load, temp_dir):
         """Test analyzing recordings in flat directory structure"""
-        tracker = LegalViolationTracker()
+        tracker = LegalViolationTracker(interactive=False)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
@@ -161,7 +161,7 @@ class TestLegalViolationTracker:
     @patch('librosa.load')
     def test_analyze_recordings_audio_error(self, mock_librosa_load, temp_dir):
         """Test handling audio loading errors"""
-        tracker = LegalViolationTracker()
+        tracker = LegalViolationTracker(interactive=False)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
@@ -182,7 +182,7 @@ class TestLegalViolationTracker:
     
     def test_create_violation_report_integration(self):
         """Test that _create_violation_report would work with real session data"""
-        tracker = LegalViolationTracker()
+        tracker = LegalViolationTracker(interactive=False)
         
         session = BarkingSession(
             start_time=0.0,

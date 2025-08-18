@@ -87,7 +87,7 @@ class AdvancedBarkDetector:
         self.max_recent_detections = 10  # Maximum number of recent detections to track
         
         # Violation detection system
-        self.violation_tracker = LegalViolationTracker()
+        self.violation_tracker = LegalViolationTracker(interactive=True)  # Interactive by default for CLI usage
         self.enable_real_time_violations = False  # Can be enabled for real-time violation detection
         
         # Create output directory

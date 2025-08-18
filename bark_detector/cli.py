@@ -431,6 +431,18 @@ def main():
                     for i, violation in enumerate(violations, 1):
                         logger.info(f"  {i}. {violation.date} - {violation.violation_type}")
                         logger.info(f"     Duration: {violation.total_bark_duration/60:.1f}min, Files: {len(violation.audio_files)}")
+                    
+                    # Generate comprehensive report
+                    logger.info("📝 Generating comprehensive violation report...")
+                    report_dir = db.generate_violation_report(start_date, end_date)
+                    
+                    if report_dir:
+                        logger.info(f"✅ Report generated successfully: {report_dir}")
+                        logger.info("📂 Report includes:")
+                        logger.info("   - Detailed violation analysis (TXT)")
+                        logger.info("   - Machine-readable data (CSV)")
+                        logger.info("   - Audio evidence files (WAV)")
+                        logger.info("   - Executive summary")
                 else:
                     logger.info(f"📋 No violations found from {start_date} to {end_date}")
                     

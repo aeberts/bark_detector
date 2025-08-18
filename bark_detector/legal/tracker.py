@@ -3,8 +3,9 @@
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from .models import ViolationReport, LegalSporadicSession
+from .database import ViolationDatabase
 from ..core.models import BarkingSession
 
 logger = logging.getLogger(__name__)
@@ -13,10 +14,17 @@ logger = logging.getLogger(__name__)
 class LegalViolationTracker:
     """Track and analyze bark events for legal violation detection."""
     
-    def __init__(self):
-        """Initialize the legal violation tracker."""
+    def __init__(self, violation_db: Optional[ViolationDatabase] = None, interactive: bool = True):
+        """Initialize the legal violation tracker.
+        
+        Args:
+            violation_db: ViolationDatabase instance for persistence
+            interactive: Whether to prompt user for duplicate handling (False for testing)
+        """
         self.violations = []
         self.sessions = []
+        self.violation_db = violation_db or ViolationDatabase()
+        self.interactive = interactive
     
     def analyze_violations(self, sessions: List[BarkingSession]) -> List[ViolationReport]:
         """Analyze barking sessions for legal violations."""
@@ -120,6 +128,46 @@ class LegalViolationTracker:
         logger.info(f"Detected {len(violations)} violations for {target_date}")
         for i, violation in enumerate(violations, 1):
             logger.info(f"  {violation.violation_type} violation: {violation.start_time} - {violation.end_time} ({violation.total_bark_duration/60:.1f}min barking)")
+        
+        # Save violations to database for later retrieval by --violation-report
+        if violations:
+            # Check if violations already exist for this date
+            if self.violation_db.has_violations_for_date(target_date):
+                existing_violations = self.violation_db.get_violations_by_date(target_date)
+                logger.warning(f"⚠️  Found {len(existing_violations)} existing violations for {target_date}")
+                
+                if self.interactive:
+                    # Ask user what to do
+                    print(f"\n🗓️  Existing violations found for {target_date}:")
+                    for i, v in enumerate(existing_violations, 1):
+                        print(f"   {i}. {v.violation_type} - {v.total_bark_duration/60:.1f}min")
+                    
+                    print("\n🤔 What would you like to do?")
+                    print("  [o] Overwrite existing violations with new analysis")
+                    print("  [k] Keep existing violations (abort analysis)")
+                    print("  [a] Add new violations alongside existing ones")
+                    
+                    while True:
+                        choice = input("\nChoice [o/k/a]: ").lower().strip()
+                        if choice in ['o', 'overwrite']:
+                            self.violation_db.add_violations_for_date(violations, target_date, overwrite=True)
+                            break
+                        elif choice in ['k', 'keep']:
+                            logger.info("🚫 Analysis aborted - keeping existing violations")
+                            return existing_violations  # Return existing violations, don't save new ones
+                        elif choice in ['a', 'add']:
+                            self.violation_db.add_violations_for_date(violations, target_date, overwrite=False)
+                            logger.info("➕ Added new violations alongside existing ones")
+                            break
+                        else:
+                            print("❌ Invalid choice. Please enter 'o', 'k', or 'a'")
+                else:
+                    # Non-interactive mode (for testing): default to overwrite
+                    logger.info("🔄 Non-interactive mode: overwriting existing violations")
+                    self.violation_db.add_violations_for_date(violations, target_date, overwrite=True)
+            else:
+                # No existing violations, save normally
+                self.violation_db.add_violations_for_date(violations, target_date, overwrite=False)
         
         return violations
         

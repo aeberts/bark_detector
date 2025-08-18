@@ -1,9 +1,10 @@
-# Priority Tasks to Discuss & Plan 
-- [ ] I? Improvement : Add the class that triggered the bark detector to log and console output.
-- [ ] T? Task : Config has startup and end time - ensure that this feature exists.
-- [ ] T? Task : Compare `config` vs `profile` features - do we nee both?
-- [ ] I4 Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
-- [ ] I1 Improvement: Save reports to the `reports/` folder
+# Priority Tasks to Discuss & Plan
+- [ ] I17 Improvement: save violation database to the project's .violations/ directory with a folder for each day. e.g. `.violations/2025-08-15/2025-08-15-violations.json`. Currently the violations database is saved to ~/.bark_detector.
+- [ ] I16 Improvement: Save reports to the `reports/` folder organized into folders by day e.g. `Violation Report 2025-08-18`
+- [ ] I14 Improvement: Add the class name that triggered the bark detector to log and console output. e.g. `INFO - 🐕 BARK DETECTED! Confidence: 0.824, Intensity: 0.375, Duration: 0.96s ([70] Bark)
+- [ ] T11 Task: Config has startup and end time - write tests to ensure this feature is working.
+- [ ] T12 Task: Compare `config` vs `profile` features - do we need both?
+- [ ] I15 Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
 - [ ] R1 Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
 
 # Backlog
@@ -14,6 +15,9 @@
 2025-08-14 16:19:57,944 - ERROR - Error: zero-dimensional arrays cannot be concatenated
 
 ## Fixed Bugs (Completed)
+- [x] B9 Bug: --violation-report not outputting report files. Now saves reports to report/ directory organized by date.
+- [x] B8 Bug: --analyze-violations creates duplicate violations when run multiple times for same date - Fixed ViolationDatabase duplicate violation creation by implementing duplicate detection with user prompts. Added has_violations_for_date(), remove_violations_for_date(), and add_violations_for_date() methods to ViolationDatabase. Enhanced LegalViolationTracker with interactive parameter for testing compatibility. Users now get prompted to overwrite, keep existing, or add alongside when duplicates detected.
+- [x] B7 Bug: --violation-report not finding violations created with --analyze-violations - Fixed ViolationDatabase integration missing from LegalViolationTracker. Added database parameter to tracker initialization and violation saving logic to analyze_recordings_for_date method.
 - [x] B6 Bug: File Calibration "Unrecognized Argument" - Fixed T2 refactor missing CLI arguments. Restored 11 missing CLI arguments including --calibrate-files, --audio-files, --ground-truth-files, --save-profile and others.
 - [x] B5 Bug: BD.py exits immediately after starting the program - Fixed incomplete refactoring where monitoring loop was not implemented
 - [x] B1 Bug: YAMNet Error when starting the project.

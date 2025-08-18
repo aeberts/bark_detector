@@ -1,3 +1,139 @@
+# B9 BUG: --violation-report is not outputting reports (RESOLVED - 2025-08-18)
+
+## Resolution
+
+**Root Cause**: The `--violation-report` CLI command was only logging violation information to the console without creating any actual report files. Users expected comprehensive report generation but received only console output.
+
+**Solution**: Implemented comprehensive report generation system in ViolationDatabase:
+- Added `generate_violation_report()` method for complete report creation
+- Reports created in `reports/` directory with date-based organization
+- Report structure includes:
+  - **Executive Summary** (REPORT_SUMMARY.txt) - High-level overview with statistics
+  - **Detailed Analysis** (detailed.txt) - Complete violation breakdown with metadata
+  - **Machine-readable Data** (CSV) - Structured data for further analysis
+  - **Audio Evidence** (audio_evidence/ folder) - Copies of all referenced audio files
+- Enhanced CLI to use new report generation and provide user feedback
+- Addresses I16 improvement requirement for organized report storage
+
+**Features Implemented**:
+- Date-based report folder naming: `Violation_Report_YYYY-MM-DD_timestamp`
+- Audio file copying with intelligent path resolution (date folders, flat structure)
+- Comprehensive error handling for missing audio files
+- Multi-format output for different use cases (legal, technical, archival)
+- Violation statistics and summaries for quick assessment
+
+**Files Modified**:
+- `bark_detector/legal/database.py`: Added comprehensive report generation methods
+- `bark_detector/cli.py`: Enhanced CLI to utilize new report generation
+- `tests/test_legal/test_report_generation.py`: Comprehensive test coverage
+
+**Status**: ✅ Bug fixed - `--violation-report` now creates comprehensive, organized reports with all supporting evidence files.
+
+## Original Bug Report
+
+--violation-report appears to exit without errors but no report is actually created. While we work on this bug we should add the following improvement: Save violation reports to the `reports/` directory organized into folders by day e.g. `Violation Report 2025-08-18`. The bark recording files which are referenced in the violation report should be copied to the corresponding violations folder.
+
+## Reproduction Steps and Output
+
+(bark_detector) ➜  bark_detector git:(main) ✗ uv run python -m bark_detector --violation-report 2025-08-15 2025-08-15
+
+2025-08-18 14:56:04,722 - INFO - ======================================================================
+2025-08-18 14:56:04,722 - INFO - Advanced YAMNet Bark Detector v3.0
+2025-08-18 14:56:04,722 - INFO - ML-based Detection with Legal Evidence Collection
+2025-08-18 14:56:04,723 - INFO - ======================================================================
+2025-08-18 14:56:04,723 - INFO - Loading configuration from: config.json
+2025-08-18 14:56:04,723 - INFO - ✅ Configuration loaded successfully from config.json
+2025-08-18 14:56:04,723 - INFO - Downloading YAMNet model (this may take a few minutes on first run)...
+2025-08-18 14:56:04,723 - INFO - Using /var/folders/8x/yr8h7zks5r98fq1rs4n9ythc0000gn/T/tfhub_modules to cache modules.
+2025-08-18 14:56:05,942 - INFO - YAMNet model downloaded successfully!
+2025-08-18 14:56:05,942 - INFO - Loading class names...
+2025-08-18 14:56:05,948 - INFO - 🚫 Excluding problematic class: [ 67] Animal
+2025-08-18 14:56:05,948 - INFO - 🚫 Excluding problematic class: [103] Wild animals
+2025-08-18 14:56:05,948 - INFO - 📊 Excluded 2 problematic classes to reduce false positives
+2025-08-18 14:56:05,948 - INFO - 📋 Detected bark-related classes:
+2025-08-18 14:56:05,948 - INFO -     1. [ 21] Whimper
+2025-08-18 14:56:05,948 - INFO -     2. [ 68] Domestic animals, pets
+2025-08-18 14:56:05,948 - INFO -     3. [ 69] Dog
+2025-08-18 14:56:05,948 - INFO -     4. [ 70] Bark
+2025-08-18 14:56:05,948 - INFO -     5. [ 71] Yip
+2025-08-18 14:56:05,948 - INFO -     6. [ 72] Howl
+2025-08-18 14:56:05,948 - INFO -     7. [ 73] Bow-wow
+2025-08-18 14:56:05,948 - INFO -     8. [ 74] Growling
+2025-08-18 14:56:05,949 - INFO -     9. [ 75] Whimper (dog)
+2025-08-18 14:56:05,949 - INFO -    10. [ 81] Livestock, farm animals, working animals
+2025-08-18 14:56:05,949 - INFO -    11. [117] Canidae, dogs, wolves
+2025-08-18 14:56:05,949 - INFO - YAMNet model loaded successfully!
+2025-08-18 14:56:05,949 - INFO - Model supports 521 audio classes
+2025-08-18 14:56:05,949 - INFO - Found 11 bark-related classes
+2025-08-18 14:56:05,949 - INFO - Advanced Bark Detector initialized:
+2025-08-18 14:56:05,949 - INFO -   Sensitivity: 0.68
+2025-08-18 14:56:05,949 - INFO -   Sample Rate: 16000 Hz
+2025-08-18 14:56:05,949 - INFO -   Session Gap Threshold: 10.0s
+2025-08-18 14:56:05,949 - INFO -   Quiet Duration: 30.0s
+2025-08-18 14:56:05,949 - INFO -   Output Directory: recordings
+2025-08-18 14:56:05,949 - INFO - 📋 Found 1 violations from 2025-08-15 to 2025-08-15:
+2025-08-18 14:56:05,949 - INFO -   1. 2025-08-15 - Intermittent
+2025-08-18 14:56:05,949 - INFO -      Duration: 24.9min, Files: 458
+
+# B8 BUG: --analyze-violations creates duplicate violations when run multiple times for same date (RESOLVED - 2025-08-18)
+
+## Resolution
+
+**Root Cause**: ViolationDatabase.add_violation() was appending violations without checking for existing data, causing duplicates when --analyze-violations was run multiple times for the same date.
+
+**Solution**: Implemented comprehensive duplicate detection and user choice system:
+- Added `has_violations_for_date()` method to check for existing violations
+- Added `remove_violations_for_date()` method to clean up existing data
+- Added `add_violations_for_date()` method with overwrite option
+- Enhanced LegalViolationTracker with interactive parameter for user prompts
+- When duplicates detected, users get three options:
+  - [o] Overwrite existing violations with new analysis
+  - [k] Keep existing violations (abort analysis)  
+  - [a] Add new violations alongside existing ones
+- Non-interactive mode defaults to overwrite for testing compatibility
+
+**Files Modified**:
+- `bark_detector/legal/database.py`: Added duplicate detection methods
+- `bark_detector/legal/tracker.py`: Added interactive user prompt system
+- `tests/test_legal/test_duplicate_prevention.py`: Comprehensive test coverage
+
+**Status**: ✅ Bug fixed - duplicate violations are now prevented with user control over handling existing data.
+
+## Original Bug Report
+
+--analyze-violations output:
+2025-08-18 14:35:24,180 - INFO - Total sessions for 2025-08-15: 464
+2025-08-18 14:35:24,181 - INFO - Detected 1 violations for 2025-08-15
+2025-08-18 14:35:24,181 - INFO -   Intermittent violation: 0:00:00 - 0:17:47 (24.9min barking)
+2025-08-18 14:35:24,203 - INFO - 💾 Saved 1 violations to database
+2025-08-18 14:35:24,204 - INFO - ✅ Found 1 violations for 2025-08-15
+2025-08-18 14:35:24,204 - INFO -   📅 Violation 1: Intermittent
+2025-08-18 14:35:24,204 - INFO -      Duration: 24.9 minutes
+2025-08-18 14:35:24,204 - INFO -      Audio files: 458 files
+2025-08-18 14:35:24,204 - INFO -      Confidence: 0.802
+
+--violation-report output:
+2025-08-18 14:39:32,942 - INFO - 📋 Found 2 violations from 2025-08-15 to 2025-08-15:
+2025-08-18 14:39:32,942 - INFO -   1. 2025-08-15 - Intermittent
+2025-08-18 14:39:32,942 - INFO -      Duration: 24.9min, Files: 458
+2025-08-18 14:39:32,942 - INFO -   2. 2025-08-15 - Intermittent
+2025-08-18 14:39:32,942 - INFO -      Duration: 24.9min, Files: 458
+
+This appears to happen when --analyze-violations is run more than 1 time for the period. My guess is that --analyze-violations is appending the same analysis data without checking if the analysis has already been done.
+
+--analyze-violations should check if data already exists for the requested day and should ask the user if they want to re-run the analysis for the specified period or abort and keep the existing data in the database.
+
+# BUG: --violation-report not finding violations created with --analyze-violations
+
+# Reproduction Steps
+
+- Run analysis with `uv run python -m bark_detector --analyze-violations 2025-08-15`
+- <analysis completes with 1 violation recorded>
+- Run violation report with `uv run python -m bark_detector --violation-report 2025-08-15 2025-08-15`
+
+Output: 
+2025-08-18 14:13:24,273 - INFO - 📋 No violations found from 2025-08-15 to 2025-08-15
+
 # BUG: Fix failing tests (RESOLVED - 2025-08-18)
 
 ## Root Cause Analysis
