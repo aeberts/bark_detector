@@ -1,8 +1,17 @@
 """Command line interface for bark detector"""
 
+import os
 import argparse
 import logging
 from pathlib import Path
+
+# Configure TensorFlow logging suppression early
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # Suppress all TensorFlow logging except errors
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'  # Disable oneDNN optimizations logging
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='tensorflow_hub')
+warnings.filterwarnings('ignore', message='pkg_resources is deprecated*')
+warnings.filterwarnings('ignore', category=UserWarning, message='.*pkg_resources.*')
 
 from .core.detector import AdvancedBarkDetector
 from .utils.helpers import setup_logging

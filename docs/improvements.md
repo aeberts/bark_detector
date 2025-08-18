@@ -1,5 +1,21 @@
 # Improvement Plans
 
+## Reduce Tensor flow DEBUG info to console (COMPLETED 2025-08-18)
+
+2025-08-18 07:51:08.883764: I tensorflow/core/platform/cpu_feature_guard.cc:182] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+/Users/zand/dev/bark_detector/.venv/lib/python3.11/site-packages/tensorflow_hub/__init__.py:61: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+2025-08-18 07:51:10,946 - INFO - ======================================================================
+2025-08-18 07:51:10,946 - INFO - Advanced YAMNet Bark Detector v3.0
+2025-08-18 07:51:10,946 - INFO - ML-based Detection with Legal Evidence Collection
+2025-08-18 07:51:10,946 - INFO - ======================================================================
+2025-08-18 07:51:10,947 - INFO - ✅ Configuration loaded successfully from config.json
+2025-08-18 07:51:10,947 - INFO - 📝 Configuration loaded from: config.json
+2025-08-18 07:51:10,947 - INFO - Downloading YAMNet model (this may take a few minutes on first run)...
+2025-08-18 07:51:10,947 - INFO - Using /var/folders/1h/ky9z5q955p397p2p6qz_z1cc0000gp/T/tfhub_modules to cache modules.
+2025-08-18 07:51:11.114527: I tensorflow/core/common_runtime/executor.cc:1197] [/device:CPU:0] (DEBUG INFO) Executor start aborting (this does not indicate an error and you can ignore this message): INVALID_ARGUMENT: You must feed a value for placeholder tensor 'inputs_3' with dtype 
+
 ## I13: Improve Bark Detector Accuracy (PHASE 1 COMPLETE)
 
 ### Problem Statement
