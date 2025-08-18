@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .core.detector import AdvancedBarkDetector
 from .utils.helpers import setup_logging
+from .utils.config import ConfigManager, BarkDetectorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +19,24 @@ def parse_arguments():
         epilog="""
 Examples:
   python -m bark_detector                          # Start monitoring with default settings
+  python -m bark_detector --config myconfig.json  # Use configuration file
   python -m bark_detector --sensitivity 0.5       # Lower sensitivity
   python -m bark_detector --profile myprofile     # Use saved profile
   python -m bark_detector --calibrate samples/    # Calibrate from files
+  python -m bark_detector --create-config config.json  # Create default config file
         """
     )
     
+    # Configuration file
+    parser.add_argument('--config', type=str,
+                        help='Load configuration from JSON file')
+    parser.add_argument('--create-config', type=str,
+                        help='Create default configuration file at specified path')
+    
     # Core detection parameters
-    parser.add_argument('--sensitivity', type=float, default=0.68,
+    parser.add_argument('--sensitivity', type=float,
                         help='Detection sensitivity (0.01-1.0, default: 0.68)')
-    parser.add_argument('--output-dir', type=str, default='recordings',
+    parser.add_argument('--output-dir', type=str,
                         help='Output directory for recordings (default: recordings)')
     
     # Profile management
@@ -101,20 +110,40 @@ def main():
     logger.info("ML-based Detection with Legal Evidence Collection")
     logger.info("=" * 70)
     
-    # Initialize detector
-    config = {
-        'sensitivity': args.sensitivity,
-        'sample_rate': 16000,          # YAMNet requirement
-        'chunk_size': 1024,
-        'channels': 1,
-        'quiet_duration': 30.0,
-        'session_gap_threshold': 10.0,  # Recording sessions
-        'output_dir': args.output_dir,
+    # Handle config file creation
+    if args.create_config:
+        config_manager = ConfigManager()
+        config_manager.create_default_config(args.create_config)
+        return
+    
+    # Load configuration
+    config_manager = ConfigManager()
+    try:
+        config = config_manager.load_config(args.config)
+        # Merge CLI arguments with config file (CLI takes precedence)
+        config = config_manager.merge_cli_args(config, args)
+        
+        if args.config:
+            logger.info(f"📝 Configuration loaded from: {args.config}")
+        
+    except (FileNotFoundError, ValueError, RuntimeError) as e:
+        logger.error(f"Configuration error: {e}")
+        return
+    
+    # Convert config to detector parameters
+    detector_config = {
+        'sensitivity': config.detection.sensitivity,
+        'sample_rate': config.detection.sample_rate,
+        'chunk_size': config.detection.chunk_size,
+        'channels': config.detection.channels,
+        'quiet_duration': config.detection.quiet_duration,
+        'session_gap_threshold': config.detection.session_gap_threshold,
+        'output_dir': config.output.recordings_dir,
         'profile_name': args.save_profile
     }
     
     try:
-        detector = AdvancedBarkDetector(**config)
+        detector = AdvancedBarkDetector(**detector_config)
         
         # Handle different modes
         if args.list_profiles:

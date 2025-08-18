@@ -1,0 +1,32 @@
+{
+  "detection": {
+    "sensitivity": 0.68,
+    "sample_rate": 16000,
+    "chunk_size": 1024,
+    "channels": 1,
+    "quiet_duration": 30.0,
+    "session_gap_threshold": 10.0
+  },
+  "output": {
+    "recordings_dir": "recordings",
+    "reports_dir": "reports",
+    "logs_dir": "logs",
+    "profiles_dir": "profiles"
+  },
+  "calibration": {
+    "default_profile": null,
+    "sensitivity_range": [0.01, 0.5],
+    "calibration_steps": 20
+  },
+  "scheduling": {
+    "auto_start": false,
+    "start_time": "06:00",
+    "stop_time": "19:00",
+    "timezone": "local"
+  },
+  "legal": {
+    "continuous_threshold": 300,
+    "sporadic_threshold": 900,
+    "sporadic_gap_threshold": 300
+  }
+}

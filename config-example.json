@@ -1,0 +1,64 @@
+{
+  "_comment": "Bark Detector Configuration File",
+  "_description": "This configuration file allows you to customize bark detector behavior",
+  
+  "detection": {
+    "_comment": "Core detection parameters",
+    "sensitivity": 0.68,
+    "_sensitivity_help": "Detection sensitivity (0.01-1.0). Higher = more sensitive",
+    "sample_rate": 16000,
+    "_sample_rate_help": "Audio sample rate in Hz (must be 16000 for YAMNet)",
+    "chunk_size": 1024,
+    "_chunk_size_help": "Audio processing chunk size in samples",
+    "channels": 1,
+    "_channels_help": "Number of audio channels (1=mono, 2=stereo)",
+    "quiet_duration": 30.0,
+    "_quiet_duration_help": "Seconds of quiet before stopping recording",
+    "session_gap_threshold": 10.0,
+    "_session_gap_threshold_help": "Seconds gap to separate recording sessions"
+  },
+  
+  "output": {
+    "_comment": "Output directory configuration",
+    "recordings_dir": "recordings",
+    "_recordings_dir_help": "Directory to save audio recordings",
+    "reports_dir": "reports", 
+    "_reports_dir_help": "Directory to save violation reports",
+    "logs_dir": "logs",
+    "_logs_dir_help": "Directory to save log files",
+    "profiles_dir": "profiles",
+    "_profiles_dir_help": "Directory to save calibration profiles"
+  },
+  
+  "calibration": {
+    "_comment": "Calibration system settings",
+    "default_profile": null,
+    "_default_profile_help": "Name of default calibration profile to load (null = use sensitivity)",
+    "sensitivity_range": [0.01, 0.5],
+    "_sensitivity_range_help": "Min and max sensitivity for calibration sweep",
+    "calibration_steps": 20,
+    "_calibration_steps_help": "Number of steps in calibration sweep"
+  },
+  
+  "scheduling": {
+    "_comment": "Automated scheduling (future feature)",
+    "auto_start": false,
+    "_auto_start_help": "Automatically start monitoring at scheduled times",
+    "start_time": "06:00",
+    "_start_time_help": "Time to start monitoring (HH:MM format)",
+    "stop_time": "19:00", 
+    "_stop_time_help": "Time to stop monitoring (HH:MM format)",
+    "timezone": "local",
+    "_timezone_help": "Timezone for scheduling (local or IANA timezone)"
+  },
+  
+  "legal": {
+    "_comment": "Legal violation detection thresholds",
+    "continuous_threshold": 300,
+    "_continuous_threshold_help": "Continuous barking threshold in seconds (City of Kelowna: 5min = 300s)",
+    "sporadic_threshold": 900,
+    "_sporadic_threshold_help": "Sporadic barking threshold in seconds (City of Kelowna: 15min = 900s)",
+    "sporadic_gap_threshold": 300,
+    "_sporadic_gap_threshold_help": "Gap threshold for sporadic detection in seconds (5min = 300s)"
+  }
+}

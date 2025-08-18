@@ -42,7 +42,31 @@
 - **False Positive Identification**: Automatic analysis of environmental noise sources and problematic class recommendations
 - **Background Audio Profiling**: Analysis of non-bark audio to identify and exclude noise-generating classes
 
-## FEATURE: Profile Management
+## FEATURE: Configuration Management
+### User Requirements
+- Persistent configuration storage for all bark detector settings
+- Easy management of complex parameter sets without long CLI commands
+- Support for multiple configuration profiles for different use cases
+- CLI override capability for quick adjustments
+### Specifications
+- **Status**: Fully implemented
+- **JSON-based Configuration**: Complete configuration system using structured JSON files
+- **Automatic File Discovery**: Searches standard locations (./config.json, ~/.bark_detector/config.json, /etc/bark_detector/config.json)
+- **Comprehensive Parameter Support**: All CLI parameters available in config files organized by functional area
+- **Configuration Sections**:
+  - `detection`: Sensitivity, sample rate, thresholds, audio processing parameters
+  - `output`: Directory paths for recordings, reports, logs, profiles
+  - `calibration`: Default profiles, sensitivity ranges, calibration steps
+  - `scheduling`: Auto-start settings, time windows, timezone configuration
+  - `legal`: Bylaw violation thresholds for continuous and sporadic detection
+- **CLI Integration**: `--config <file>` to load configuration, `--create-config <file>` to generate templates
+- **Precedence Handling**: CLI arguments override config file values override system defaults
+- **Validation System**: Comprehensive parameter validation with helpful error messages
+- **Template Generation**: Automatic creation of example configuration files with documentation
+- **Backward Compatibility**: All existing CLI workflows continue to work unchanged
+- **Error Handling**: Graceful handling of missing files, invalid JSON, parameter validation failures
+
+## FEATURE: Profile Management  
 ### User Requirements
 - Save detection settings for different monitoring scenarios
 - Quick switching between calibrated configurations
@@ -53,6 +77,7 @@
 - Profile validation and error handling
 - Default profile fallback system
 - Integration with calibration system for automatic profile updates
+- **Integration with Configuration System**: Profiles work seamlessly with new configuration management
 
 ## FEATURE: Audio File Conversion
 ### User Requirements
@@ -117,36 +142,32 @@
 - **Seamless Integration**: Works transparently with violation analysis and reporting features
 - **Error Handling**: Graceful handling of directory creation permissions and edge cases
 
-## PLANNED FEATURE: Bylaw Violation Detection
+## FEATURE: Advanced Bylaw Violation Detection
 ### User Requirements
-- Automatically detect when barking meets City of Kelowna bylaw violation criteria
-- Flag incidents that can be used as legal evidence
+- Automatically detect when barking meets City of Kelowna bylaw violation criteria using ML analysis
+- Flag incidents that can be used as legal evidence with confidence scoring
 - Analyze all audio recordings in the recordings folder for a given day for potential violations
-- Create a violation report for each violation identified with the following information:
-    - Date of violation
-    - start time
-    - end time
-    - Type of violation: (Intermittent? (aka sporadic) / Constant (aka continual))
-    
-
+- Create comprehensive violation reports for each violation identified with detailed metadata
 ### Specifications
-- **Status**: Not yet implemented in current codebase
+- **Status**: Fully implemented with advanced YAMNet ML integration
+- **ML-Based Analysis**: Uses advanced YAMNet bark detection to analyze actual audio content rather than simple file duration checks. Provides accurate bark event detection with confidence scores and detailed session analysis.
 - **Continuous/Constant Violation Detection**: 
-  - Detects individual BarkingSessions with total_duration ≥ 5 minutes (300 seconds)
-  - Detects sequences of BarkingSessions with gaps ≤30 seconds that together span ≥5 minutes
-  - Uses existing 10-second gap threshold (Recording Sessions) for detection
-  - Classification: Reports as "Constant" violation type
+  - Detects individual BarkingSessions with total_duration ≥ 5 minutes (300 seconds) of actual barking
+  - Uses YAMNet ML model to identify real bark events within sessions
+  - Classification: Reports as "Constant" violation type with confidence metrics
 - **Sporadic/Intermittent Violation Detection**: 
   - Groups BarkingSessions into Legal Sporadic Sessions using 5-minute gap threshold
   - Detects Legal Sporadic Sessions with ≥15 minutes (900 seconds) total barking duration  
   - Uses Gap Threshold Hierarchy rules defined in project_overview.md
-  - Classification: Reports as "Intermittent" violation type
-- **Post-processing Analysis**: Analyze existing recordings in recordings/ folder by date to reconstruct violation timeline
-- **Real-time Detection**: Flag violations during live monitoring sessions
-- **Violation Database**: Track violations across multiple days for city evidence requirements (4+ instances over 3-5 days)
-- **RDCO Report Generation**: Generate reports with exact dates, times, durations, violation types, and associated audio file references
-- **Additional Report Fields**: Include total barking duration, list of associated audio recording files, and RDCO-compliant formatting
-- **Will implement enhanced LegalViolationTracker class for comprehensive violation detection and reporting**
+  - Classification: Reports as "Intermittent" violation type with session grouping details
+- **Advanced Post-processing Analysis**: 
+  - Analyzes existing recordings using advanced bark detection pipeline
+  - Loads audio files → YAMNet ML analysis → bark event detection → session creation → violation detection
+  - Supports both date-based folder structure and flat file organization
+  - Comprehensive error handling for corrupted or missing files
+- **Detailed Violation Reports**: Each violation report includes exact dates, times, durations, violation types, confidence scores, audio file references, and metadata for legal evidence
+- **CLI Integration**: Accessible via `--analyze-violations DATE` command with comprehensive logging and progress reporting
+- **Comprehensive Test Coverage**: Full integration testing ensures reliability for legal evidence collection
 
 ## PLANNED FEATURE: Legal Evidence Collection
 ### User Requirements

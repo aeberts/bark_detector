@@ -65,6 +65,14 @@ class TestLegalViolationTracker:
         """Test analyzing recordings for a specific date"""
         tracker = LegalViolationTracker()
         mock_detector = Mock()
+        mock_detector.sample_rate = 16000
+        mock_detector.session_gap_threshold = 10.0
+        
+        # Mock the _detect_barks_in_buffer method to return bark events for a 6-minute file
+        mock_bark_events = [
+            BarkEvent(start_time=10.0, end_time=370.0, confidence=0.8)  # 6+ minute bark event
+        ]
+        mock_detector._detect_barks_in_buffer.return_value = mock_bark_events
         
         # Create test recording files
         date_folder = temp_dir / "2025-08-14"
@@ -89,6 +97,14 @@ class TestLegalViolationTracker:
         """Test analyzing recordings with no violations"""
         tracker = LegalViolationTracker()
         mock_detector = Mock()
+        mock_detector.sample_rate = 16000
+        mock_detector.session_gap_threshold = 10.0
+        
+        # Mock the _detect_barks_in_buffer method to return short bark events (no violations)
+        mock_bark_events = [
+            BarkEvent(start_time=10.0, end_time=50.0, confidence=0.7)  # Short bark event (40 seconds)
+        ]
+        mock_detector._detect_barks_in_buffer.return_value = mock_bark_events
         
         # Create test recording files
         date_folder = temp_dir / "2025-08-14"
@@ -107,6 +123,8 @@ class TestLegalViolationTracker:
         """Test analyzing recordings when no files exist"""
         tracker = LegalViolationTracker()
         mock_detector = Mock()
+        mock_detector.sample_rate = 16000
+        mock_detector.session_gap_threshold = 10.0
         
         violations = tracker.analyze_recordings_for_date(temp_dir, "2025-08-14", mock_detector)
         
@@ -117,6 +135,14 @@ class TestLegalViolationTracker:
         """Test analyzing recordings in flat directory structure"""
         tracker = LegalViolationTracker()
         mock_detector = Mock()
+        mock_detector.sample_rate = 16000
+        mock_detector.session_gap_threshold = 10.0
+        
+        # Mock the _detect_barks_in_buffer method to return bark events for a 6-minute file
+        mock_bark_events = [
+            BarkEvent(start_time=10.0, end_time=370.0, confidence=0.8)  # 6+ minute bark event
+        ]
+        mock_detector._detect_barks_in_buffer.return_value = mock_bark_events
         
         # Create test recording file in flat structure
         test_file = temp_dir / "bark_recording_20250814_120000.wav"
@@ -137,6 +163,8 @@ class TestLegalViolationTracker:
         """Test handling audio loading errors"""
         tracker = LegalViolationTracker()
         mock_detector = Mock()
+        mock_detector.sample_rate = 16000
+        mock_detector.session_gap_threshold = 10.0
         
         # Create test recording file
         date_folder = temp_dir / "2025-08-14"

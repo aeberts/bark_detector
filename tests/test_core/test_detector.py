@@ -80,12 +80,18 @@ class TestAdvancedBarkDetector:
         scores[1, 6] = 0.7  # Bark class medium score
         
         # Test bark score extraction
-        bark_scores = detector._get_bark_scores(scores)
+        bark_scores, class_details = detector._get_bark_scores(scores)
         
         assert len(bark_scores) == 5
+        assert len(class_details) == 5
         assert bark_scores[0] == 0.9  # Max of dog (0.8) and bark (0.9)
         assert bark_scores[1] == 0.7  # Only bark class active
         assert bark_scores[2] == 0.0  # No bark classes active
+        
+        # Test class details
+        assert class_details[0]['max_score'] == 0.9
+        assert 'class_scores' in class_details[0]
+        assert 'triggering_classes' in class_details[0]
     
     @patch('bark_detector.core.detector.hub.load')
     @patch('bark_detector.core.detector.pyaudio.PyAudio')
@@ -101,11 +107,21 @@ class TestAdvancedBarkDetector:
         # Create detector
         detector = AdvancedBarkDetector(**mock_detector_config)
         
-        # Create bark scores above threshold (only frames 1,2,3,4 > 0.68)
-        bark_scores = np.array([0.5, 0.75, 0.8, 0.9, 0.6])  # frames 1,2,3,4 above 0.68
+        # Create bark scores above threshold (only frames 1,2,3 > 0.68)
+        bark_scores = np.array([0.5, 0.75, 0.8, 0.9, 0.6])  # frames 1,2,3 above 0.68
+        
+        # Create mock class details for each frame
+        class_details = []
+        for i in range(len(bark_scores)):
+            class_details.append({
+                'frame': i,
+                'max_score': bark_scores[i],
+                'class_scores': {'Bark': bark_scores[i]},
+                'triggering_classes': ['Bark']
+            })
         
         # Test event extraction
-        events = detector._scores_to_events(bark_scores)
+        events = detector._scores_to_events(bark_scores, class_details)
         
         # Should create one continuous event spanning frames 1-3 (frame 4 has 0.6 < 0.68)
         assert len(events) == 1
@@ -131,8 +147,18 @@ class TestAdvancedBarkDetector:
         # Create bark scores with gap below threshold (frames 0,1,4 > 0.68)
         bark_scores = np.array([0.75, 0.8, 0.5, 0.6, 0.85])  # Gap at frames 2-3
         
+        # Create mock class details for each frame
+        class_details = []
+        for i in range(len(bark_scores)):
+            class_details.append({
+                'frame': i,
+                'max_score': bark_scores[i],
+                'class_scores': {'Bark': bark_scores[i]},
+                'triggering_classes': ['Bark']
+            })
+        
         # Test event extraction
-        events = detector._scores_to_events(bark_scores)
+        events = detector._scores_to_events(bark_scores, class_details)
         
         # Should create two separate events
         assert len(events) == 2

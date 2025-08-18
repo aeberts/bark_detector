@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 2025-08-18
+
+### Major Improvements
+- **Violation Analysis Enhancement**: Complete overhaul of `--analyze-violations` functionality to use advanced YAMNet bark detection instead of simple file duration analysis. Now properly analyzes audio content using ML model to detect actual bark events and create accurate barking sessions. Implemented comprehensive sporadic violation detection (15+ minutes across multiple sessions within 5-minute gaps) alongside existing continuous violation detection (5+ minutes per session). Enhanced LegalViolationTracker with _detect_sporadic_violations(), _group_sessions_for_sporadic_analysis(), and _create_sporadic_violation_report() methods. All 111 tests passing with proper integration test coverage.
+
+### Bug Fixes
+- Fixed failing tests caused by I13 accuracy improvements: Updated file calibration tests to mock soundfile.read instead of accessing non-existent test files, fixed detector tests to handle new _get_bark_scores() tuple return value and _scores_to_events() class_details parameter. Fixed legal violation tracker tests to properly mock advanced bark detector with required attributes and methods.
+
+### Improvements
+- I2: Implemented comprehensive JSON-based configuration system supporting all current CLI features. Added ConfigManager with validation, automatic file search paths (./config.json, ~/.bark_detector/config.json), and CLI precedence handling. Created config.json and config-example.json templates. Integrated --config and --create-config CLI options with backward compatibility. Includes 32 comprehensive tests covering configuration loading, validation, CLI integration, and error handling. System supports detection parameters, output directories, calibration settings, scheduling options, and legal thresholds with proper validation and error messages.
+
 ## 2025-08-15
 
 ### Bug Fixes

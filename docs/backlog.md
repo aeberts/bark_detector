@@ -1,7 +1,6 @@
 # Priority Tasks to Discuss & Plan 
 - [ ] T9 Test: Implement tests of the bark detector using sample audio and ground truth files from the @samples/ folder.
-- [ ] I? Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
-- [ ] I2 Improvement: Configure bark recorder with a configuration file supporting all current features.
+- [ ] I4 Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
 - [ ] I1 Improvement: Save reports to the `reports/` folder
 - [ ] R1 Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
 
@@ -35,6 +34,7 @@
 - [x] B4 Bug: Recordings start at confidence interval below 0.68.
 
 ## Implemented Improvements (Complete)
+- [x] I2 Improvement: Configure bark recorder with a configuration file supporting all current features - Implemented comprehensive JSON-based configuration system with validation, CLI integration, automatic file search, precedence handling (CLI > config file > defaults), example files, and complete test coverage (32 tests). Supports all detection parameters, output directories, calibration settings, scheduling options, and legal thresholds. Includes `--config` and `--create-config` CLI options for easy usage.
 - [x] I13 Phase 1 Improvement: Improve Bark Detector Accuracy - Implemented intelligent YAMNet class filtering, reduced false positives by 54% (13→6), improved precision from 58.1% to 71.4%. Excluded problematic broad classes ("Animal", "Wild animals") while maintaining detection capability with 11 focused bark-related classes.
 - [x] I1 Improvement: reduce sensitivity of the bark detector to only begin barking when the YAMNet confidence is 0.68 or higher to avoid false positives.
 - [x] I11 Improvement: All recordings for a single day should go in their own folder.
@@ -70,6 +70,7 @@
 - [x] T2 Task: Refactor bd.py into separate modules
 - [x] T3 Task: Implement error handling for TensorFlow model loading failures
 - [x] T8 Task: Implement comprehensive project testing plan with 4-phase approach covering core detection, legal compliance, and integration testing (38/38 tests passing)
+- [x] T10 Task: Enhanced legal and analysis module test coverage - Fixed violation analysis system to use advanced YAMNet bark detection instead of simple file duration checks. Added comprehensive sporadic violation detection (15+ minutes across multiple sessions within 5-minute gaps). Fixed all test mocks to properly integrate with enhanced bark detector API. All 111 tests passing with full violation analysis integration coverage.
 
 ### Technical Debt & Maintenance (Remaining)
 - [ ] T4 Task: Add comprehensive unit tests for calibration system

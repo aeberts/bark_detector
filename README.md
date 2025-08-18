@@ -57,22 +57,42 @@ python --version  # Should show Python 3.11.4
 
 ## Usage
 
-Run the bark detector:
+### Basic Monitoring
 ```bash
+# Start monitoring with default settings
+uv run python -m bark_detector
+
+# Use custom sensitivity
+uv run python -m bark_detector --sensitivity 0.5
+
+# Save to custom directory
+uv run python -m bark_detector --output-dir my_recordings
+```
+
+### Configuration Files
+```bash
+# Create a configuration file
+uv run python -m bark_detector --create-config config.json
+
+# Use configuration file
+uv run python -m bark_detector --config config.json
+
+# Override config file values with CLI
+uv run python -m bark_detector --config config.json --sensitivity 0.8
+```
+
+### Legacy Usage
+```bash
+# Legacy entry point (still supported)
 uv run bd.py
 ```
+
 The detector will:
 - Load YAMNet ML model on first run
 - Monitor audio input in real-time
 - Log bark detections with confidence and intensity
 - Record audio sessions when barking is detected
 - Provide comprehensive analysis of recordings
-
-### Run with Calibration File
-
-```
-uv run bd.py 
-```
 
 ## Cross-Platform Deployment
 

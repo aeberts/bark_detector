@@ -1,5 +1,33 @@
-# BUG: File Calibration "Unrecognized Argument --calibrate-files" (RESOLVED)
+# BUG: Fix failing tests (RESOLVED - 2025-08-18)
 
+## Root Cause Analysis
+
+**Problem**: Five tests were failing after the I13 bark detector accuracy improvements that changed internal API signatures.
+
+**Root Causes**:
+1. **File calibration tests**: Tests were trying to read actual audio files ('test.wav') that don't exist in test environment
+2. **Detector tests**: `_get_bark_scores()` method now returns a tuple `(scores, class_details)` instead of just scores
+3. **Event conversion tests**: `_scores_to_events()` method now requires `class_details` parameter for enhanced analysis
+
+**Solutions**:
+1. **Fixed file calibration tests**:
+   - Added `@patch('soundfile.read')` to mock audio file reading in `test_sensitivity_sweep` and `test_calibration_profile_creation`
+   - Provided mock audio data instead of trying to read non-existent files
+
+2. **Fixed detector API tests**:
+   - Updated `test_get_bark_scores` to handle tuple return value and test class_details
+   - Updated `test_scores_to_events` and `test_scores_to_events_with_gaps` to provide required `class_details` parameter
+   - Created proper mock class_details structures matching the new API
+
+**Files Modified**:
+- `tests/test_calibration/test_file_calibration.py`: Added soundfile mocking for file-based tests
+- `tests/test_core/test_detector.py`: Updated API calls to match new method signatures
+
+**Status**: ✅ All tests fixed - 104 tests now passing with comprehensive coverage of enhanced bark detection features
+
+## Original Test Output
+
+# BUG: File Calibration "Unrecognized Argument --calibrate-files" (RESOLVED)
 
 ## Bug Repro Steps
 

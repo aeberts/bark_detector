@@ -129,8 +129,9 @@ class TestFileBasedCalibration:
         assert result['false_positives'] == 1
         assert result['missed'] == 0
     
+    @patch('soundfile.read')
     @patch('librosa.load')
-    def test_sensitivity_sweep(self, mock_librosa_load):
+    def test_sensitivity_sweep(self, mock_librosa_load, mock_sf_read):
         """Test sensitivity parameter sweep"""
         mock_detector = Mock()
         mock_detector.sensitivity = 0.7
@@ -140,6 +141,10 @@ class TestFileBasedCalibration:
         # Add test file
         audio_path = Path("test.wav")
         ground_truth_events = [GroundTruthEvent(1.0, 2.0, "test bark")]
+        
+        # Mock soundfile.read for file analysis
+        mock_audio_data = np.random.rand(32000)  # 2 seconds at 16kHz
+        mock_sf_read.return_value = (mock_audio_data, 16000)
         
         with patch.object(calibrator, '_ensure_compatible_audio', return_value=audio_path):
             calibrator.add_test_file(audio_path, ground_truth_events=ground_truth_events)
@@ -171,12 +176,17 @@ class TestFileBasedCalibration:
         assert results['optimal_sensitivity'] == pytest.approx(0.6, abs=0.1)
         assert results['best_result']['f1_score'] > 0
     
+    @patch('soundfile.read')
     @patch('librosa.load') 
-    def test_calibration_profile_creation(self, mock_librosa_load):
+    def test_calibration_profile_creation(self, mock_librosa_load, mock_sf_read):
         """Test creation of calibration profile from file analysis"""
         mock_detector = Mock()
         mock_detector.sensitivity = 0.7
         mock_detector._detect_barks_in_buffer.return_value = [BarkEvent(1.2, 1.8, 0.8)]
+        
+        # Mock soundfile.read for file analysis
+        mock_audio_data = np.random.rand(32000)  # 2 seconds at 16kHz
+        mock_sf_read.return_value = (mock_audio_data, 16000)
         
         calibrator = FileBasedCalibration(detector=mock_detector)
         
