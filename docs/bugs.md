@@ -1,3 +1,26 @@
+# B? Bug: --enhanced-violation-report issues
+
+## Detailed report issues:
+
+## Incorrect time stamps for barks 
+- Barks do not appear in the audio files at the times indicated in the detailed report. 
+- 2025-08-15 06:24:56 BARK (00:00:15.267) - NO BARK HERE
+- 2025-08-15 06:25:00 BARK (00:00:19.168) - NO BARK HERE
+
+## Incorrect labeling of barks:
+
+`bark_recording_20250815_062441.wav` is 30 seconds long so it would be impossible for there to be barks at the following time stamps:
+
+- 2025-08-15 06:25:14 BARK (00:00:33.007)
+- 2025-08-15 06:25:17 BARK (00:00:36.142)
+- 2025-08-15 06:25:21 BARK (00:00:40.692)
+- 2025-08-15 06:25:26 BARK (00:00:45.032)
+- 2025-08-15 06:25:28 BARK (00:00:47.984)
+- etc...
+
+## Verify the bark detection algorithm used for enhanced-report
+
+
 # B9 BUG: --violation-report is not outputting reports (RESOLVED - 2025-08-18)
 
 ## Resolution

@@ -1,10 +1,20 @@
 # Improvement Plans
 
+## I18 Improvement : Create separate logs for each main features.
+
+Create separate logs for the main bark detector, --analyze-violations --enhanced-violation-report, etc seprated into directories organized by date.
+
 ## I18 Improvement: Violation Report Improvements
 
 Violation report should include the start time and end time of the violation relative to the time of day. Here is an example of how I would like the report to look:
 
-`Barking Violation Report Summary
+### Barking Violation Report Summary Template 
+
+Note: items in curly brackets {} are instructions about what should go in the report. E.g. 
+<Visual Graph of Barking Session> should be replaced with a visual graph of the bark events as described.
+
+<Barking Violation Summary Template>
+Barking Violation Report Summary
 Date: 2025-08-15
 
 SUMMARY:
@@ -15,37 +25,41 @@ Intermittent Violations: 1
 Violation 1 (Intermittent):
 Start time: 06:25:13  End Time 06:47:23 
 Duration: 22 mins 10 seconds
-Total Barks: <Total Barks Analyzed>
+Total Barks: {Total Barks Analyzed}
 Supporting audio files:
 - bark_recording_20250815_062511.wav
 - bark_recording_20250815_064746.wav
 
-Generated: 2025-08-18 at 15:12:31`
+Generated at: 2025-08-18 at 15:12:31`
 
-I would also like a detailed violation report for each violation in the `Barking Violation Report Summary` which should look like this:
+</Barking Violation Summary Template>
 
-`
+### Barking Violation Detail Report
+
+<Barking Violation Details Template>
 Barking Detail Report for 2025-08-15, Violation 1
 
 Violation Type: Intermittent
 Start time: 06:25:13 End Time 06:47:23 
 Duration: 22 mins 10 seconds
-Total Barks: <Total Barks Analyzed>
+Total Barks: {Total Barks Analyzed}
 
-<Visual Graph of Barking Session>
-<X-axis is time with X=0 being the start time of the violation (in this case 06:25:13)>
-<The x-axis should stretch slightly past the end time of the violation (in this case 06:47:23)>
-<The x-axis should be scaled to fit the width of a letter sized pdf.>
+{Visual Graph of Barking Session
+Notes on Visual Graph: 
+- X-axis is time with X=0 being the start time of the violation (in this case 06:25:13)
+- The x-axis should stretch slightly past the end time of the violation (in this case 06:47:23)}
+- The x-axis should be scaled to fit the width of a letter sized pdf.}
 
 Supporting Audio Files:
 
 # bark_recording_20250815_062511.wav
-- 2025-08-15 06:25:13 BARK (00:00:02.01)
-- 2025-08-15 06:25:15 BARK (00:00:04.34)
-...
+- 2025-08-15 06:25:13 Bark (00:00:02.01)
+- 2025-08-15 06:25:15 Bark (00:00:04.34)
 
 # bark_recording_20250815_064746.wav
- <Identify bark details similar to the example above>`
+{Identify bark details similar to the example above}
+
+</Barking Violation Details Template>
 
 ## Reduce Tensor flow DEBUG info to console (COMPLETED 2025-08-18)
 

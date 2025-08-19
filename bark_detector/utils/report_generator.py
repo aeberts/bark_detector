@@ -7,6 +7,12 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple, Any
 from collections import defaultdict
 
+try:
+    import soundfile as sf
+    SOUNDFILE_AVAILABLE = True
+except ImportError:
+    SOUNDFILE_AVAILABLE = False
+
 from .time_utils import (
     parse_log_timestamp, 
     datetime_to_time_of_day, 
@@ -73,6 +79,20 @@ class LogBasedReportGenerator:
         self.logs_directory = Path(logs_directory)
         self.recordings_directory = Path(recordings_directory)
     
+    def get_audio_file_duration(self, audio_file_path: Path) -> Optional[float]:
+        """Get actual duration of audio file in seconds"""
+        if not SOUNDFILE_AVAILABLE:
+            # Fallback to estimated duration if soundfile not available
+            return 30 * 60  # 30 minutes default
+        
+        try:
+            with sf.SoundFile(audio_file_path) as f:
+                duration_seconds = len(f) / f.samplerate
+                return duration_seconds
+        except Exception as e:
+            print(f"Warning: Could not read audio file {audio_file_path}: {e}")
+            return 30 * 60  # Fallback to 30 minutes
+    
     def find_log_file_for_date(self, target_date: date) -> Optional[Path]:
         """Find log file for a specific date"""
         date_str = target_date.strftime('%Y-%m-%d')
@@ -133,34 +153,48 @@ class LogBasedReportGenerator:
     
     def correlate_barks_with_audio_files(self, bark_events: List[BarkEvent], 
                                        audio_files: List[Path]) -> None:
-        """Correlate bark events with their corresponding audio files"""
+        """Correlate bark events with their corresponding audio files using actual audio durations"""
         
-        # Parse audio file timestamps
-        audio_timestamps = {}
+        # Parse audio file timestamps and get actual durations
+        audio_file_info = {}
         for audio_file in audio_files:
             timestamp = parse_audio_filename_timestamp(audio_file.name)
             if timestamp:
-                audio_timestamps[timestamp] = audio_file
+                duration_seconds = self.get_audio_file_duration(audio_file)
+                if duration_seconds:
+                    end_time = timestamp + timedelta(seconds=duration_seconds)
+                    audio_file_info[timestamp] = {
+                        'file': audio_file,
+                        'end_time': end_time,
+                        'duration_seconds': duration_seconds
+                    }
         
         # Match bark events to audio files
         for bark_event in bark_events:
             # Find the audio file that contains this bark
             best_match = None
             best_offset = None
+            closest_distance = None
             
-            for audio_start_time, audio_file in audio_timestamps.items():
-                # Assume recordings are up to 30 minutes long (configurable)
-                # This could be improved by reading actual audio file duration
-                estimated_end_time = audio_start_time + timedelta(minutes=30)
+            for audio_start_time, file_info in audio_file_info.items():
+                audio_end_time = file_info['end_time']
                 
-                if audio_start_time <= bark_event.timestamp <= estimated_end_time:
+                # Check if bark event falls within this audio file's timespan
+                if audio_start_time <= bark_event.timestamp <= audio_end_time:
                     offset = get_audio_file_bark_offset(audio_start_time, bark_event.timestamp)
-                    if best_match is None or bark_event.timestamp > best_match:
-                        best_match = audio_start_time
-                        best_offset = offset
+                    
+                    # Validate that offset doesn't exceed actual file duration
+                    offset_seconds = (bark_event.timestamp - audio_start_time).total_seconds()
+                    if offset_seconds <= file_info['duration_seconds']:
+                        # Use the audio file with the closest start time to bark event
+                        distance = abs((bark_event.timestamp - audio_start_time).total_seconds())
+                        if best_match is None or distance < closest_distance:
+                            best_match = audio_start_time
+                            best_offset = offset
+                            closest_distance = distance
             
             if best_match and best_offset:
-                bark_event.audio_file = audio_timestamps[best_match].name
+                bark_event.audio_file = audio_file_info[best_match]['file'].name
                 bark_event.offset_in_file = best_offset
     
     def generate_violation_summary_report(self, target_date: date, 
@@ -287,30 +321,125 @@ class LogBasedReportGenerator:
         return reports
     
     def create_violations_from_bark_events(self, bark_events: List[BarkEvent]) -> List[ViolationReport]:
-        """Create violation reports from bark events (simplified version)"""
-        # This is a placeholder implementation
-        # In practice, you'd implement the full violation detection logic here
-        # For now, just create a simple violation if there are enough bark events
-        
-        if len(bark_events) < 5:  # Need at least 5 barks for a violation
+        """Create violation reports from bark events using proper legal detection logic"""
+        if not bark_events:
             return []
         
-        # Create a simple intermittent violation spanning all bark events
-        start_time = min(event.timestamp for event in bark_events)
-        end_time = max(event.timestamp for event in bark_events)
+        # Import necessary models for session creation
+        from ..core.models import BarkEvent as CoreBarkEvent, BarkingSession
+        from ..legal.tracker import LegalViolationTracker
         
-        # Determine violation type based on duration and bark density
-        duration_minutes = (end_time - start_time).total_seconds() / 60
+        # Convert report BarkEvent objects to core BarkEvent objects
+        core_bark_events = []
+        for event in bark_events:
+            # Convert datetime timestamp to seconds since start of day for core models
+            start_of_day = event.timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+            start_time_seconds = (event.timestamp - start_of_day).total_seconds()
+            end_time_seconds = start_time_seconds + 1.0  # Assume 1 second duration for log events
+            
+            core_event = CoreBarkEvent(
+                start_time=start_time_seconds,
+                end_time=end_time_seconds,
+                confidence=event.confidence,
+                intensity=event.intensity
+            )
+            core_bark_events.append(core_event)
         
-        if duration_minutes >= 15:
-            violation_type = "Intermittent"
-        elif duration_minutes >= 5:
-            violation_type = "Constant"
-        else:
-            return []  # Not enough duration for a violation
+        if not core_bark_events:
+            return []
         
-        violation = ViolationReport(violation_type, start_time, end_time)
-        for bark_event in bark_events:
-            violation.add_bark_event(bark_event)
+        # Create sessions using 10-second gap threshold (standard for recording sessions)
+        session_gap_threshold = 10.0
+        sessions = self._events_to_sessions(core_bark_events, session_gap_threshold)
         
-        return [violation]
+        # Use LegalViolationTracker for proper violation detection
+        tracker = LegalViolationTracker(interactive=False)  # Non-interactive for report generation
+        legal_violations = tracker.analyze_violations(sessions)
+        
+        # Convert legal violation reports to our report format
+        report_violations = []
+        start_of_day = bark_events[0].timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        for legal_violation in legal_violations:
+            # Convert violation times back to datetime objects
+            violation_start = start_of_day + timedelta(seconds=legal_violation.start_time)
+            violation_end = start_of_day + timedelta(seconds=legal_violation.end_time)
+            
+            # Create our report violation
+            report_violation = ViolationReport(legal_violation.violation_type, violation_start, violation_end)
+            
+            # Add bark events that fall within this violation timespan
+            for bark_event in bark_events:
+                if violation_start <= bark_event.timestamp <= violation_end:
+                    report_violation.add_bark_event(bark_event)
+            
+            report_violations.append(report_violation)
+        
+        return report_violations
+    
+    def _events_to_sessions(self, bark_events: List, gap_threshold: float) -> List:
+        """Convert bark events to barking sessions using gap threshold (mirrored from LegalViolationTracker)"""
+        from ..core.models import BarkingSession
+        
+        if not bark_events:
+            return []
+        
+        sessions = []
+        current_session_events = [bark_events[0]]
+        
+        for i in range(1, len(bark_events)):
+            current_event = bark_events[i]
+            last_event = current_session_events[-1]
+            
+            # Calculate gap between end of last event and start of current event
+            gap = current_event.start_time - last_event.end_time
+            
+            if gap <= gap_threshold:
+                # Within gap threshold - add to current session
+                current_session_events.append(current_event)
+            else:
+                # Gap too large - finalize current session and start new one
+                if current_session_events:
+                    session = self._create_session_from_events(current_session_events)
+                    sessions.append(session)
+                
+                current_session_events = [current_event]
+        
+        # Add final session
+        if current_session_events:
+            session = self._create_session_from_events(current_session_events)
+            sessions.append(session)
+        
+        return sessions
+    
+    def _create_session_from_events(self, events: List) -> 'BarkingSession':
+        """Create a BarkingSession from a list of BarkEvents (mirrored from LegalViolationTracker)"""
+        from ..core.models import BarkingSession
+        
+        if not events:
+            return None
+        
+        start_time = events[0].start_time
+        end_time = events[-1].end_time
+        total_duration = sum(event.end_time - event.start_time for event in events)
+        total_barks = len(events)
+        avg_confidence = sum(event.confidence for event in events) / len(events)
+        peak_confidence = max(event.confidence for event in events)
+        
+        session_duration = end_time - start_time
+        barks_per_second = total_barks / session_duration if session_duration > 0 else 0
+        
+        # Calculate average intensity
+        avg_intensity = sum(getattr(event, 'intensity', 0.0) for event in events) / len(events)
+        
+        return BarkingSession(
+            start_time=start_time,
+            end_time=end_time,
+            events=events,
+            total_barks=total_barks,
+            total_duration=total_duration,
+            avg_confidence=avg_confidence,
+            peak_confidence=peak_confidence,
+            barks_per_second=barks_per_second,
+            intensity=avg_intensity
+        )
