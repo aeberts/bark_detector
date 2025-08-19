@@ -557,6 +557,50 @@ class TestViolationDetectionIntegration:
         
         # Should return empty list since the violation was skipped
         assert len(violations) == 0
+    
+    @patch('bark_detector.legal.tracker.LegalViolationTracker')
+    def test_create_violations_handles_24hour_timestamps(self, mock_tracker_class):
+        """Test handling of 24-hour format timestamps from legal violations"""
+        generator = LogBasedReportGenerator()
+        
+        # Create a mock legal violation with 24-hour timestamp format
+        from bark_detector.legal.models import ViolationReport as LegalViolationReport
+        mock_legal_violation = LegalViolationReport(
+            date="2025-08-15",
+            start_time="2025-08-15 16:46:26",  # 24-hour format (start before end)
+            end_time="2025-08-15 20:47:39",   # 24-hour format
+            violation_type="Intermittent",
+            total_bark_duration=1200.0,
+            total_incident_duration=1320.0,
+            audio_files=["file1.wav"],
+            audio_file_start_times=["00:00:00"],
+            audio_file_end_times=["00:22:00"],
+            confidence_scores=[0.8],
+            peak_confidence=0.8,
+            avg_confidence=0.8,
+            created_timestamp="2025-08-15T06:47:00"
+        )
+        
+        # Mock the tracker
+        mock_tracker = Mock()
+        mock_tracker.analyze_violations.return_value = [mock_legal_violation]
+        mock_tracker_class.return_value = mock_tracker
+        
+        # Create bark events
+        bark_events = [
+            BarkEvent(datetime(2025, 8, 15, 6, 25, 0), 0.8, 0.4),
+            BarkEvent(datetime(2025, 8, 15, 6, 25, 30), 0.7, 0.3),
+        ]
+        
+        # Should parse 24-hour timestamps correctly
+        violations = generator.create_violations_from_bark_events(bark_events)
+        
+        # Should successfully parse the 24-hour format timestamps
+        assert len(violations) == 1
+        violation = violations[0]
+        assert violation.violation_type == "Intermittent"
+        assert violation.start_time == datetime(2025, 8, 15, 16, 46, 26)
+        assert violation.end_time == datetime(2025, 8, 15, 20, 47, 39)
         
     def test_events_to_sessions(self):
         """Test converting bark events to sessions"""

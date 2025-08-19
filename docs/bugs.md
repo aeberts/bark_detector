@@ -4,13 +4,13 @@
 
 **Root Cause**: The `--enhanced-violation-report` command failed on Intel Mac with TypeError "unsupported type for timedelta seconds component: str" when attempting to parse violation timestamps. The legal violation models return time strings in HH:MM AM/PM format, but the enhanced report generator was trying to use them directly as numeric seconds in timedelta calculations.
 
-**Solution**: Implemented proper datetime parsing for legal violation timestamps:
-- Added string parsing for HH:MM AM/PM format timestamps using datetime.strptime()
-- Implemented comprehensive error handling to gracefully skip violations with invalid timestamp formats
-- Added fallback logic to prevent crashes when timestamp parsing fails
-- Enhanced test coverage with specific validation for both valid and invalid timestamp scenarios
+**Solution**: Implemented robust multi-format datetime parsing for legal violation timestamps:
+- Added support for multiple timestamp formats: 12-hour AM/PM ("6:25 AM"), 24-hour ("20:47:39"), full datetime strings ("2025-08-15 20:47:39"), and time-only formats
+- Implemented comprehensive format detection and fallback parsing logic
+- Added comprehensive error handling to gracefully skip violations with invalid timestamp formats
+- Enhanced test coverage with validation for multiple timestamp formats and error scenarios
 
-**Technical Details**: The legal ViolationReport model stores start_time and end_time as strings ("6:25 AM") but the enhanced report generator expected numeric seconds. Fixed by parsing these strings back to datetime objects using the pattern "%Y-%m-%d %I:%M %p" combined with the violation date.
+**Technical Details**: The legal ViolationReport model stores start_time and end_time as strings in various formats, but the enhanced report generator expected numeric seconds. Fixed by implementing format detection and parsing with multiple datetime patterns including "%Y-%m-%d %I:%M %p", "%Y-%m-%d %H:%M:%S", and others.
 
 **Files Modified**:
 - `bark_detector/utils/report_generator.py`: Fixed timestamp parsing in create_violations_from_bark_events()

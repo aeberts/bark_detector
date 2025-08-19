@@ -364,14 +364,65 @@ class LogBasedReportGenerator:
             # The legal violation has start_time/end_time as strings (HH:MM AM/PM format)
             # We need to parse them back to datetime objects
             try:
-                # Parse the time strings - they should be in HH:MM AM/PM format
+                # Parse the time strings - they can be in multiple formats
                 violation_start_str = legal_violation.start_time
                 violation_end_str = legal_violation.end_time
                 violation_date_str = legal_violation.date
                 
-                # Parse full datetime strings
-                violation_start = datetime.strptime(f"{violation_date_str} {violation_start_str}", "%Y-%m-%d %I:%M %p")
-                violation_end = datetime.strptime(f"{violation_date_str} {violation_end_str}", "%Y-%m-%d %I:%M %p")
+                # Try different timestamp formats
+                timestamp_formats = [
+                    "%Y-%m-%d %I:%M %p",      # "2025-08-15 6:25 AM"
+                    "%Y-%m-%d %H:%M:%S",      # "2025-08-15 20:47:39" 
+                    "%Y-%m-%d %H:%M",         # "2025-08-15 20:47"
+                    "%I:%M %p",               # "6:25 AM" (time only)
+                    "%H:%M:%S",               # "20:47:39" (time only)
+                    "%H:%M"                   # "20:47" (time only)
+                ]
+                
+                violation_start = None
+                violation_end = None
+                
+                # Try parsing start time
+                for fmt in timestamp_formats:
+                    try:
+                        if fmt.startswith("%Y"):
+                            # Full datetime string - use violation_start_str directly if it contains date
+                            if violation_start_str.count("-") >= 2:  # Contains date (YYYY-MM-DD)
+                                violation_start = datetime.strptime(violation_start_str.strip(), fmt)
+                            else:
+                                # Combine with date
+                                violation_start = datetime.strptime(f"{violation_date_str} {violation_start_str}".strip(), fmt)
+                        else:
+                            # Time only - combine with date
+                            time_part = datetime.strptime(violation_start_str, fmt).time()
+                            date_part = datetime.strptime(violation_date_str, "%Y-%m-%d").date()
+                            violation_start = datetime.combine(date_part, time_part)
+                        break
+                    except ValueError:
+                        continue
+                
+                # Try parsing end time
+                for fmt in timestamp_formats:
+                    try:
+                        if fmt.startswith("%Y"):
+                            # Full datetime string - use violation_end_str directly if it contains date
+                            if violation_end_str.count("-") >= 2:  # Contains date (YYYY-MM-DD)
+                                violation_end = datetime.strptime(violation_end_str.strip(), fmt)
+                            else:
+                                # Combine with date
+                                violation_end = datetime.strptime(f"{violation_date_str} {violation_end_str}".strip(), fmt)
+                        else:
+                            # Time only - combine with date
+                            time_part = datetime.strptime(violation_end_str, fmt).time()
+                            date_part = datetime.strptime(violation_date_str, "%Y-%m-%d").date()
+                            violation_end = datetime.combine(date_part, time_part)
+                        break
+                    except ValueError:
+                        continue
+                
+                # Check if parsing succeeded
+                if violation_start is None or violation_end is None:
+                    raise ValueError(f"Could not parse timestamps: start='{violation_start_str}', end='{violation_end_str}'")
                 
             except (ValueError, AttributeError) as e:
                 # Fallback: if parsing fails, try to extract times from the violation data
