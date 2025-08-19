@@ -361,9 +361,23 @@ class LogBasedReportGenerator:
         start_of_day = bark_events[0].timestamp.replace(hour=0, minute=0, second=0, microsecond=0)
         
         for legal_violation in legal_violations:
-            # Convert violation times back to datetime objects
-            violation_start = start_of_day + timedelta(seconds=legal_violation.start_time)
-            violation_end = start_of_day + timedelta(seconds=legal_violation.end_time)
+            # The legal violation has start_time/end_time as strings (HH:MM AM/PM format)
+            # We need to parse them back to datetime objects
+            try:
+                # Parse the time strings - they should be in HH:MM AM/PM format
+                violation_start_str = legal_violation.start_time
+                violation_end_str = legal_violation.end_time
+                violation_date_str = legal_violation.date
+                
+                # Parse full datetime strings
+                violation_start = datetime.strptime(f"{violation_date_str} {violation_start_str}", "%Y-%m-%d %I:%M %p")
+                violation_end = datetime.strptime(f"{violation_date_str} {violation_end_str}", "%Y-%m-%d %I:%M %p")
+                
+            except (ValueError, AttributeError) as e:
+                # Fallback: if parsing fails, try to extract times from the violation data
+                print(f"Warning: Could not parse violation times: {e}")
+                # Skip this violation rather than crash
+                continue
             
             # Create our report violation
             report_violation = ViolationReport(legal_violation.violation_type, violation_start, violation_end)

@@ -471,9 +471,27 @@ class TestViolationDetectionIntegration:
         """Test creating violations using real legal detection logic"""
         generator = LogBasedReportGenerator()
         
+        # Create a mock legal violation with string timestamps (as returned by actual system)
+        from bark_detector.legal.models import ViolationReport as LegalViolationReport
+        mock_legal_violation = LegalViolationReport(
+            date="2025-08-15",
+            start_time="6:25 AM",
+            end_time="6:47 AM", 
+            violation_type="Intermittent",
+            total_bark_duration=1200.0,
+            total_incident_duration=1320.0,
+            audio_files=["file1.wav"],
+            audio_file_start_times=["00:00:00"],
+            audio_file_end_times=["00:22:00"],
+            confidence_scores=[0.8],
+            peak_confidence=0.8,
+            avg_confidence=0.8,
+            created_timestamp="2025-08-15T06:47:00"
+        )
+        
         # Mock the tracker
         mock_tracker = Mock()
-        mock_tracker.analyze_violations.return_value = []
+        mock_tracker.analyze_violations.return_value = [mock_legal_violation]
         mock_tracker_class.return_value = mock_tracker
         
         # Create bark events
@@ -492,6 +510,53 @@ class TestViolationDetectionIntegration:
         # Verify sessions were created and passed to tracker
         call_args = mock_tracker.analyze_violations.call_args[0][0]  # First argument (sessions)
         assert len(call_args) > 0  # Sessions were created
+        
+        # Verify that the legal violation was converted correctly
+        assert len(violations) == 1
+        violation = violations[0]
+        assert violation.violation_type == "Intermittent"
+        assert violation.start_time == datetime(2025, 8, 15, 6, 25, 0)
+        assert violation.end_time == datetime(2025, 8, 15, 6, 47, 0)
+    
+    @patch('bark_detector.legal.tracker.LegalViolationTracker')
+    def test_create_violations_handles_invalid_timestamps(self, mock_tracker_class):
+        """Test handling of invalid timestamp formats in legal violations"""
+        generator = LogBasedReportGenerator()
+        
+        # Create a mock legal violation with invalid timestamp format
+        from bark_detector.legal.models import ViolationReport as LegalViolationReport
+        mock_legal_violation = LegalViolationReport(
+            date="2025-08-15",
+            start_time="invalid time",  # Invalid format
+            end_time="also invalid",   # Invalid format
+            violation_type="Intermittent",
+            total_bark_duration=1200.0,
+            total_incident_duration=1320.0,
+            audio_files=["file1.wav"],
+            audio_file_start_times=["00:00:00"],
+            audio_file_end_times=["00:22:00"],
+            confidence_scores=[0.8],
+            peak_confidence=0.8,
+            avg_confidence=0.8,
+            created_timestamp="2025-08-15T06:47:00"
+        )
+        
+        # Mock the tracker
+        mock_tracker = Mock()
+        mock_tracker.analyze_violations.return_value = [mock_legal_violation]
+        mock_tracker_class.return_value = mock_tracker
+        
+        # Create bark events
+        bark_events = [
+            BarkEvent(datetime(2025, 8, 15, 6, 25, 0), 0.8, 0.4),
+            BarkEvent(datetime(2025, 8, 15, 6, 25, 30), 0.7, 0.3),
+        ]
+        
+        # Should not crash and should skip the invalid violation
+        violations = generator.create_violations_from_bark_events(bark_events)
+        
+        # Should return empty list since the violation was skipped
+        assert len(violations) == 0
         
     def test_events_to_sessions(self):
         """Test converting bark events to sessions"""
