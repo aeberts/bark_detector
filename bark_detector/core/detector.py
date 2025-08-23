@@ -71,6 +71,7 @@ class AdvancedBarkDetector:
         self.is_recording = False
         self.is_running = False
         self.recording_data = []
+        self.recording_start_time: Optional[datetime] = None  # Timestamp when recording starts (for filename)
         self.last_bark_time = 0.0
         self.audio = None
         self.stream = None
@@ -263,6 +264,7 @@ class AdvancedBarkDetector:
                         logger.info("Starting recording session...")
                     self.is_recording = True
                     self.recording_data = []
+                    self.recording_start_time = datetime.now()  # Capture start time for filename
                     self.session_start_time = bark_time
                     
                 # Store the bark event for session tracking
@@ -573,13 +575,23 @@ class AdvancedBarkDetector:
         return True
     
     def save_recording(self) -> str:
-        """Save recording with comprehensive analysis."""
+        """Save recording with comprehensive analysis.
+        
+        Note: Filename timestamp represents when recording STARTED, not when it ended.
+        This ensures accurate bark-to-audio-file correlation in analysis tools.
+        """
         if not self.recording_data:
             return ""
         
-        # Generate timestamp and extract date
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        date_str = datetime.now().strftime("%Y-%m-%d")
+        # Use recording start time for filename timestamp (not end time)
+        if self.recording_start_time:
+            timestamp = self.recording_start_time.strftime("%Y%m%d_%H%M%S")
+            date_str = self.recording_start_time.strftime("%Y-%m-%d")
+        else:
+            # Fallback to current time if start time not captured (shouldn't happen)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            logger.warning("Recording start time not captured, using current time as fallback")
         
         # Create date-based subdirectory
         date_dir = os.path.join(self.output_dir, date_str)

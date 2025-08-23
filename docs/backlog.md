@@ -1,6 +1,8 @@
 # Priority Tasks to Discuss & Plan
+- [x] T21 Task: Review all code which analyzes bark recording files for incorrect timestamps.
+- [ ] I17 Improvement: save violation analysis database to the project's .violations/ directory with a folder for each day. e.g. `.violations/2025-08-15/2025-08-15-violations.json`. 
+- [ ] T20 Task: Review --analyze-violations for bugs
 - [x] I18 Improvement: Violation Report Improvements
-- [ ] I17 Improvement: save violation analysis database to the project's .violations/ directory with a folder for each day. e.g. `.violations/2025-08-15/2025-08-15-violations.json`. Currently the violations database is saved to ~/.bark_detector.
 - [ ] I14 Improvement: Add the class name that triggered the bark detector to log and console output. e.g. `INFO - 🐕 BARK DETECTED! Confidence: 0.824, Intensity: 0.375, Duration: 0.96s ([70] Bark)
 - [ ] T11 Task: Config has startup and end time - write tests to ensure this feature is working.
 - [ ] T12 Task: Compare `config` vs `profile` features - do we need both?
@@ -12,7 +14,7 @@
 ## Tests
 
 ## Bugs
-2025-08-14 16:19:57,944 - ERROR - Error: zero-dimensional arrays cannot be concatenated
+
 
 ## Fixed Bugs (Completed)
 - [x] B9 Bug: --violation-report not outputting report files. Now saves reports to report/ directory organized by date.
@@ -81,6 +83,7 @@
 - [x] T8 Task: Implement comprehensive project testing plan with 4-phase approach covering core detection, legal compliance, and integration testing (38/38 tests passing)
 - [x] T9 Task: Implement tests of the bark detector using sample audio and ground truth files - Created comprehensive sample-based testing infrastructure using real audio recordings with precise ground truth annotations. Implemented SampleDataLoader and DetectionEvaluator with 1-second tolerance windows and 0.65+ confidence thresholds. Added 12 comprehensive tests covering individual sample accuracy, multi-sample analysis, confidence threshold compliance, false positive monitoring, and regression protection. System achieves 77.6% F1 score overall with 100% precision and 63.3% recall across all samples. All 123 tests passing.
 - [x] T10 Task: Enhanced legal and analysis module test coverage - Fixed violation analysis system to use advanced YAMNet bark detection instead of simple file duration checks. Added comprehensive sporadic violation detection (15+ minutes across multiple sessions within 5-minute gaps). Fixed all test mocks to properly integrate with enhanced bark detector API. All 111 tests passing with full violation analysis integration coverage.
+- [x] T21 Task: Fixed Recording Filename Timestamp Bug - Resolved critical issue where bark recording filenames contained END timestamps instead of START timestamps, causing incorrect bark-to-audio-file correlation in analysis tools. Added recording_start_time field to capture timestamp when recording begins, modified save_recording() to use start time for filename generation. This ensures accurate legal evidence correlation for enhanced violation reports and analysis features. Updated documentation and verified fix with practical testing. All 204 tests passing.
 
 ### Technical Debt & Maintenance (Remaining)
 - [ ] T4 Task: Add comprehensive unit tests for calibration system

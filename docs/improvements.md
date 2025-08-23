@@ -1,17 +1,33 @@
 # Improvement Plans
 
-## I18 Improvement : Create separate logs for each main features.
+## T? Review if renaming exisiting files with correct timestamp is necessary. 
 
-Create separate logs for the main bark detector, --analyze-violations --enhanced-violation-report, etc seprated into directories organized by date.
+## T21 Task: Review all code which analyzes bark recording files for incorrect timestamps.
+- the filename of bark recording files includes a timestamp of the **end** of the recording NOT the start of the recording which might be causing hard to detect bugs in code which analyzes audio files.
+- E.g. the file `bark_recording_20250818_062559.wav` is 1.5MB file which **finished** recording barks at 06:25:29 AM on 2025-08-18.
+- Exisiting code which parses time information from the filename of an audio bark recording may assume that this is the start time of the recording (which is incorrect).
+
+## T20 Task : Review --analyze-violations for bugs.
+- Is `--analyze-violations` correctly identifying and saving violation information?
+
+## I17 Improvement: Save violation analysis database to the project's violations/ directory 
+
+Improvement: Save each violation in it's own file within a folder for each day. e.g. `.violations/2025-08-15/2025-08-15-violations.json`.
+
+Currently --analyze-violations saves the database to ~/.bark_detector/violations.json
+
+## I19 Improvement : Separate logs by date
+
+- Create separate logs for each day. E.g. logs/2025-08-19-bark_detector.log
 
 ## I18 Improvement: Violation Report Improvements
 
 Violation report should include the start time and end time of the violation relative to the time of day. Here is an example of how I would like the report to look:
 
-### Barking Violation Report Summary Template 
+### Barking Violation Report Summary Template.
 
 Note: items in curly brackets {} are instructions about what should go in the report. E.g. 
-<Visual Graph of Barking Session> should be replaced with a visual graph of the bark events as described.
+{Visual Graph of Barking Session} should be replaced with a visual graph of the bark events as described.
 
 <Barking Violation Summary Template>
 Barking Violation Report Summary

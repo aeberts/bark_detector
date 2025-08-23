@@ -110,13 +110,14 @@ def extract_bark_info_from_log(log_line: str) -> Optional[Tuple[datetime, float,
 
 def parse_audio_filename_timestamp(filename: str) -> Optional[datetime]:
     """
-    Extract timestamp from audio filename.
+    Extract recording start timestamp from audio filename.
     
     Args:
         filename: Audio filename like 'bark_recording_20250815_062511.wav'
+                 The timestamp represents when recording STARTED, not when it ended.
         
     Returns:
-        datetime object or None if parsing fails
+        datetime object representing recording start time, or None if parsing fails
     """
     # Pattern: bark_recording_YYYYMMDD_HHMMSS.wav
     pattern = r'bark_recording_(\d{8})_(\d{6})\.wav'
