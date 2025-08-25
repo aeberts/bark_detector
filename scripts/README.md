@@ -25,11 +25,14 @@ Due to the T21 bug fix, existing bark recording files have END timestamps in the
 # Preview changes (RECOMMENDED FIRST STEP)
 python scripts/rename_recordings_to_start_timestamps.py --dry-run
 
-# Execute the migration
+# Execute the migration (saves log to logs/YYYY-MM-DD-recording-rename.log)
 python scripts/rename_recordings_to_start_timestamps.py
 
 # Custom recordings directory
 python scripts/rename_recordings_to_start_timestamps.py --recordings-dir /path/to/recordings
+
+# Custom log file location
+python scripts/rename_recordings_to_start_timestamps.py --log-file migration-2025-08-25.log
 
 # Process in smaller batches
 python scripts/rename_recordings_to_start_timestamps.py --batch-size 50
@@ -45,13 +48,13 @@ python scripts/rename_recordings_to_start_timestamps.py --continue-on-error
 **Usage**:
 ```bash
 # Preview rollback actions (RECOMMENDED)
-python scripts/rollback_recording_renames.py --log-file 2025-08-25-recording-rename.log --dry-run
+python scripts/rollback_recording_renames.py --log-file logs/2025-08-25-recording-rename.log --dry-run
 
 # Execute rollback
-python scripts/rollback_recording_renames.py --log-file 2025-08-25-recording-rename.log
+python scripts/rollback_recording_renames.py --log-file logs/2025-08-25-recording-rename.log
 
 # Rollback only successful renames (skip failed operations)
-python scripts/rollback_recording_renames.py --log-file migration.log --only-successful
+python scripts/rollback_recording_renames.py --log-file logs/migration.log --only-successful
 ```
 
 ## Migration Process
@@ -71,7 +74,7 @@ python scripts/rename_recordings_to_start_timestamps.py --dry-run
 
 This will:
 - Show all proposed filename changes
-- Generate a log file (e.g., `2025-08-25-recording-rename.log`)
+- Generate a log file in `logs/` directory (e.g., `logs/2025-08-25-recording-rename.log`)
 - Report statistics (total files, expected changes, errors)
 
 ### Step 3: Review Results

@@ -33,7 +33,7 @@ import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Optional
 import re
 
 # Import audio processing library
@@ -89,7 +89,7 @@ class RecordingMigrator:
         pattern = re.compile(r'bark_recording_\d{8}_\d{6}\.wav$')
         
         # Search recursively for recording files
-        for root, dirs, files in os.walk(self.recordings_dir):
+        for root, _, files in os.walk(self.recordings_dir):
             for file in files:
                 if pattern.match(file):
                     recording_files.append(Path(root) / file)
@@ -264,6 +264,9 @@ class RecordingMigrator:
     def save_migration_log(self):
         """Save the migration log to JSON file."""
         try:
+            # Ensure the log directory exists
+            self.log_file.parent.mkdir(parents=True, exist_ok=True)
+            
             with open(self.log_file, 'w') as f:
                 json.dump(self.migration_log, f, indent=2)
             self.logger.info(f"Migration log saved to {self.log_file}")
@@ -340,8 +343,8 @@ def main():
     
     parser.add_argument(
         "--log-file",
-        default=f"{datetime.now().strftime('%Y-%m-%d')}-recording-rename.log",
-        help="Migration log file path"
+        default=f"logs/{datetime.now().strftime('%Y-%m-%d')}-recording-rename.log",
+        help="Migration log file path (default: logs/YYYY-MM-DD-recording-rename.log)"
     )
     
     parser.add_argument(
