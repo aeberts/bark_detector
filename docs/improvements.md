@@ -1,6 +1,7 @@
 # Improvement Plans
 
-## T? Review if renaming exisiting files with correct timestamp is necessary. 
+## T22 Create script to rename bark recording files with correct start timestamps vs end timestamps. (COMPLETED)
+**Resolution**: Created comprehensive migration scripts in `scripts/` directory to rename existing recordings from END to START timestamps. Migration is reversible via JSON logging and includes full documentation for production deployment.
 
 ## T21 Task: Review all code which analyzes bark recording files for incorrect timestamps.
 - the filename of bark recording files includes a timestamp of the **end** of the recording NOT the start of the recording which might be causing hard to detect bugs in code which analyzes audio files.

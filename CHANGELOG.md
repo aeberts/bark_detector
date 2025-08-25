@@ -4,6 +4,7 @@
 
 ### Critical Bug Fixes
 - **T21: Fixed Recording Filename Timestamp Bug**: Resolved critical issue where bark recording filenames contained END timestamps instead of START timestamps, causing incorrect bark-to-audio-file correlation in analysis tools. Root cause was `save_recording()` using `datetime.now()` (recording end time) instead of capturing timestamp when recording begins. Added `recording_start_time` field to AdvancedBarkDetector class, captured start time when first bark detected and recording begins, and modified `save_recording()` to use stored start time for filename generation. This ensures filenames like `bark_recording_20250823_103237.wav` represent when recording STARTED, enabling accurate legal evidence correlation. Updated documentation and comments throughout codebase to clarify timestamp meaning. All existing tests pass, confirming backward compatibility maintained while fixing correlation accuracy for enhanced violation reports and legal analysis features.
+- **Migration Scripts for Existing Recordings**: Created comprehensive one-time migration scripts in `scripts/` directory to rename 1,600+ existing recordings from END timestamps to START timestamps. Features include: space-efficient renaming (no file copying), reversible operations via JSON logging, dry-run mode for safety, cross-platform compatibility, comprehensive error handling, and progress reporting. Scripts support Intel Mac deployment for production use. Includes detailed documentation and rollback capability for emergency recovery.
 
 ## 2025-08-18
 
