@@ -17,17 +17,62 @@ logger = logging.getLogger(__name__)
 class ViolationDatabase:
     """Manages collection and persistence of violation reports."""
     
-    def __init__(self, db_path: Path = None):
-        """Initialize violation database."""
-        if db_path is None:
-            db_path = Path.home() / '.bark_detector' / 'violations.json'
+    def __init__(self, db_path_or_violations_dir: Path = None, violations_dir: Path = None):
+        """Initialize violation database.
         
-        self.db_path = db_path
+        Args:
+            db_path_or_violations_dir: For backward compatibility - can be legacy db_path or violations_dir
+            violations_dir: Explicit violations directory (when using named parameter)
+        """
+        # Handle backward compatibility: if first arg is provided and looks like a file, treat as legacy db_path
+        if db_path_or_violations_dir is not None:
+            path = Path(db_path_or_violations_dir)
+            # If it has a file extension (.json), treat as legacy db_path
+            if path.suffix == '.json' or (path.exists() and path.is_file()):
+                # Legacy mode
+                self.db_path = path
+                self.violations_dir = None
+                self.use_date_structure = False
+            else:
+                # New mode - directory for date structure
+                self.violations_dir = path
+                self.use_date_structure = True
+                self.db_path = None
+        elif violations_dir is not None:
+            # Explicit violations_dir parameter
+            self.violations_dir = Path(violations_dir)
+            self.use_date_structure = True
+            self.db_path = None
+        else:
+            # Default: use project-local violations/ directory
+            self.violations_dir = Path.cwd() / 'violations'
+            self.use_date_structure = True
+            self.db_path = None
+        
         self.violations: List[ViolationReport] = []
-        self._load_violations()
+        
+        if not self.use_date_structure:
+            self._load_violations_legacy()
+        # Date-based loading happens per-date in get_violations_by_date()
     
-    def _load_violations(self):
-        """Load existing violations from database file."""
+    def _get_violations_file_path(self, date: str) -> Path:
+        """Get the file path for violations for a specific date.
+        
+        Args:
+            date: Date in YYYY-MM-DD format
+            
+        Returns:
+            Path to the violations file for that date
+        """
+        if self.use_date_structure:
+            date_dir = self.violations_dir / date
+            return date_dir / f"{date}-violations.json"
+        else:
+            # Legacy single file mode
+            return self.db_path
+    
+    def _load_violations_legacy(self):
+        """Load existing violations from legacy single database file."""
         try:
             if self.db_path.exists():
                 with open(self.db_path, 'r') as f:
@@ -45,10 +90,38 @@ class ViolationDatabase:
             logger.warning(f"Could not load violation database: {e}")
             self.violations = []
     
-    def save_violations(self):
-        """Save violations to database file."""
+    def _load_violations_for_date(self, date: str) -> List[ViolationReport]:
+        """Load violations for a specific date from date-based file structure."""
+        violations_file = self._get_violations_file_path(date)
+        violations = []
+        
         try:
-            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            if violations_file.exists():
+                with open(violations_file, 'r') as f:
+                    data = json.load(f)
+                    for violation_data in data.get('violations', []):
+                        # Add backward compatibility for records without new timestamp fields
+                        if 'audio_file_start_times' not in violation_data:
+                            violation_data['audio_file_start_times'] = ["00:00:00"] * len(violation_data.get('audio_files', []))
+                        if 'audio_file_end_times' not in violation_data:
+                            violation_data['audio_file_end_times'] = ["00:00:00"] * len(violation_data.get('audio_files', []))
+                        
+                        violations.append(ViolationReport(**violation_data))
+        except Exception as e:
+            logger.warning(f"Could not load violations for date {date}: {e}")
+        
+        return violations
+    
+    def _save_violations_for_date(self, violations: List[ViolationReport], date: str):
+        """Save violations for a specific date to date-based file structure."""
+        if not violations:
+            return
+            
+        violations_file = self._get_violations_file_path(date)
+        
+        try:
+            # Create directory structure
+            violations_file.parent.mkdir(parents=True, exist_ok=True)
             
             data = {
                 'violations': [
@@ -67,45 +140,141 @@ class ViolationDatabase:
                         'avg_confidence': convert_numpy_types(v.avg_confidence),
                         'created_timestamp': v.created_timestamp
                     }
-                    for v in self.violations
+                    for v in violations
                 ]
             }
             
-            with open(self.db_path, 'w') as f:
+            with open(violations_file, 'w') as f:
                 json.dump(data, f, indent=2)
+            
+            logger.debug(f"💾 Saved {len(violations)} violations to {violations_file}")
                 
         except Exception as e:
-            logger.error(f"Could not save violation database: {e}")
+            logger.error(f"Could not save violations for date {date}: {e}")
+    
+    def save_violations(self):
+        """Save violations to database file (legacy method for backward compatibility)."""
+        if not self.use_date_structure:
+            # Legacy single file mode
+            try:
+                self.db_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                data = {
+                    'violations': [
+                        {
+                            'date': v.date,
+                            'start_time': v.start_time,
+                            'end_time': v.end_time,
+                            'violation_type': v.violation_type,
+                            'total_bark_duration': convert_numpy_types(v.total_bark_duration),
+                            'total_incident_duration': convert_numpy_types(v.total_incident_duration),
+                            'audio_files': v.audio_files,
+                            'audio_file_start_times': v.audio_file_start_times,
+                            'audio_file_end_times': v.audio_file_end_times,
+                            'confidence_scores': convert_numpy_types(v.confidence_scores),
+                            'peak_confidence': convert_numpy_types(v.peak_confidence),
+                            'avg_confidence': convert_numpy_types(v.avg_confidence),
+                            'created_timestamp': v.created_timestamp
+                        }
+                        for v in self.violations
+                    ]
+                }
+                
+                with open(self.db_path, 'w') as f:
+                    json.dump(data, f, indent=2)
+                    
+            except Exception as e:
+                logger.error(f"Could not save violation database: {e}")
+        else:
+            # Date-based structure mode - group by date and save to separate files
+            violations_by_date = {}
+            for violation in self.violations:
+                date = violation.date
+                if date not in violations_by_date:
+                    violations_by_date[date] = []
+                violations_by_date[date].append(violation)
+            
+            for date, date_violations in violations_by_date.items():
+                self._save_violations_for_date(date_violations, date)
     
     def add_violation(self, violation: ViolationReport):
         """Add a violation report to the database."""
-        self.violations.append(violation)
-        self.save_violations()
+        if self.use_date_structure:
+            # In date-based mode, save directly to date-specific file
+            self.add_violations_for_date([violation], violation.date, overwrite=False)
+        else:
+            # Legacy mode - add to in-memory list and save all
+            self.violations.append(violation)
+            self.save_violations()
     
     def remove_violations_for_date(self, date: str):
         """Remove all violations for a specific date."""
-        initial_count = len(self.violations)
-        self.violations = [v for v in self.violations if v.date != date]
-        removed_count = initial_count - len(self.violations)
-        if removed_count > 0:
-            self.save_violations()
-            logger.info(f"🗑️ Removed {removed_count} existing violations for {date}")
-        return removed_count
+        if self.use_date_structure:
+            violations_file = self._get_violations_file_path(date)
+            removed_count = 0
+            if violations_file.exists():
+                existing_violations = self._load_violations_for_date(date)
+                removed_count = len(existing_violations)
+                try:
+                    violations_file.unlink()  # Delete the file
+                    logger.info(f"🗑️ Removed {removed_count} existing violations for {date}")
+                except Exception as e:
+                    logger.error(f"Failed to remove violations file for {date}: {e}")
+                    removed_count = 0
+            return removed_count
+        else:
+            initial_count = len(self.violations)
+            self.violations = [v for v in self.violations if v.date != date]
+            removed_count = initial_count - len(self.violations)
+            if removed_count > 0:
+                self.save_violations()
+                logger.info(f"🗑️ Removed {removed_count} existing violations for {date}")
+            return removed_count
     
     def has_violations_for_date(self, date: str) -> bool:
         """Check if violations exist for a specific date."""
-        return any(v.date == date for v in self.violations)
+        if self.use_date_structure:
+            violations_file = self._get_violations_file_path(date)
+            return violations_file.exists() and len(self._load_violations_for_date(date)) > 0
+        else:
+            return any(v.date == date for v in self.violations)
     
     def get_violations_by_date_range(self, start_date: str, end_date: str) -> List[ViolationReport]:
         """Get violations within date range (YYYY-MM-DD format)."""
-        return [
-            v for v in self.violations 
-            if start_date <= v.date <= end_date
-        ]
+        if self.use_date_structure:
+            # Load violations from all date files in the range
+            violations = []
+            date_range = self._get_date_range(start_date, end_date)
+            for date in date_range:
+                violations.extend(self._load_violations_for_date(date))
+            return violations
+        else:
+            return [
+                v for v in self.violations 
+                if start_date <= v.date <= end_date
+            ]
+    
+    def _get_date_range(self, start_date: str, end_date: str) -> List[str]:
+        """Generate list of dates between start_date and end_date (inclusive)."""
+        from datetime import datetime, timedelta
+        
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        
+        dates = []
+        current = start
+        while current <= end:
+            dates.append(current.strftime('%Y-%m-%d'))
+            current += timedelta(days=1)
+        
+        return dates
     
     def get_violations_by_date(self, date: str) -> List[ViolationReport]:
         """Get violations for specific date (YYYY-MM-DD format)."""
-        return [v for v in self.violations if v.date == date]
+        if self.use_date_structure:
+            return self._load_violations_for_date(date)
+        else:
+            return [v for v in self.violations if v.date == date]
     
     def export_to_csv(self, output_path: Path) -> None:
         """Export violations to CSV format for RDCO submission."""
@@ -140,11 +309,18 @@ class ViolationDatabase:
         if overwrite and self.has_violations_for_date(date):
             self.remove_violations_for_date(date)
         
-        for violation in violations:
-            self.violations.append(violation)
+        if self.use_date_structure:
+            # In date-based mode, save directly to date-specific file
+            existing_violations = self._load_violations_for_date(date) if not overwrite else []
+            all_violations = existing_violations + violations
+            self._save_violations_for_date(all_violations, date)
+        else:
+            # Legacy mode - add to in-memory list and save all
+            for violation in violations:
+                self.violations.append(violation)
+            self.save_violations()
         
         if violations:
-            self.save_violations()
             logger.info(f"💾 Saved {len(violations)} violations to database")
     
     def generate_violation_report(self, start_date: str, end_date: str, output_dir: Path = None) -> Path:

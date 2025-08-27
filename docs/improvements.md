@@ -13,9 +13,74 @@
 
 ## I17 Improvement: Save violation analysis database to the project's violations/ directory 
 
-Improvement: Save each violation in it's own file within a folder for each day. e.g. `.violations/2025-08-15/2025-08-15-violations.json`.
+### Implementation Plan
 
-Currently --analyze-violations saves the database to ~/.bark_detector/violations.json
+**Current System Analysis:**
+- ViolationDatabase currently saves to `~/.bark_detector/violations.json` (single file)
+- All violations stored in one JSON file regardless of date
+- Global system-wide storage across all projects
+- No date-based organization for multi-day evidence collection
+
+**Target System:**
+- Save violations to project-local `violations/` directory
+- Date-based organization: `violations/2025-08-15/2025-08-15-violation1.json`
+- Each day gets its own directory with a violation file for each violation.
+- Better organization for legal evidence collection spanning multiple days
+- Project-isolated violation storage
+
+**Technical Implementation:**
+
+**Phase 1: ViolationDatabase Updates**
+- Modify `ViolationDatabase.__init__()` to accept optional `violations_dir` parameter
+- Default to `violations/` directory in current working directory
+- Update `_get_violations_file_path()` method to create date-based paths:
+  - From: `~/.bark_detector/violations.json`  
+  - To: `violations/2025-08-15/2025-08-15-violations.json`
+- Add directory creation logic with proper error handling
+- Maintain backward compatibility by supporting both old and new path formats
+
+**Phase 2: Date-Based File Management**
+- Extract date from violation data to determine target directory
+- Create date subdirectories automatically: `violations/YYYY-MM-DD/`
+- Generate date-specific filenames (one for each violation): `YYYY-MM-DD-violation1.json`
+- Handle multiple violations per day in separate files.
+- Add file existence checking and merging logic for same-day violations (important when analysis is run more than once on the same day).
+
+**Phase 3: CLI Integration**
+- Update LegalViolationTracker initialization in CLI to pass violations directory
+- Modify `--analyze-violations` command to use new directory structure
+- Update `--violation-report` command to search date-based directories
+- No migration necessary for existing `~/.bark_detector/violations.json` data. Previous violoation.json files will be deleted and new analysis runs will be performed.
+
+**Files to Modify:**
+1. `bark_detector/legal/database.py`:
+   - Update `ViolationDatabase.__init__(violations_dir=None)`
+   - Modify `_get_violations_file_path(date)` to return date-based paths
+   - Update `save_violations()` and `load_violations()` for date-specific files
+
+2. `bark_detector/legal/tracker.py`:
+   - Update LegalViolationTracker to pass violations directory to database
+   - Ensure date context is available for file path generation
+
+3. `bark_detector/cli.py`:
+   - Initialize ViolationDatabase with `violations/` directory
+   - Update CLI commands to work with new directory structure
+
+**Benefits:**
+- **Project Isolation**: Each bark detector project has its own violations
+- **Better Organization**: Date-based folders for multi-day evidence collection  
+- **Legal Compliance**: Easier to package evidence for city submission
+- **Scalability**: Supports long-term monitoring without single-file limitations
+- **Portability**: Violations travel with project directory
+
+**Backward Compatibility:**
+- No backwards compatibility from previous ~/.bark_detector/violations.json necessary.
+- Graceful degradation if directory creation fails
+
+**Testing Requirements:**
+- Unit tests for date-based path generation
+- Integration tests for CLI workflow with new directory structure  
+- Cross-platform directory creation and permissions testing
 
 ## I19 Improvement : Separate logs by date
 

@@ -424,7 +424,8 @@ def main():
             
             try:
                 start_date, end_date = args.violation_report
-                db = ViolationDatabase()
+                # Use project-local violations/ directory  
+                db = ViolationDatabase(violations_dir=Path('violations'))
                 
                 violations = db.get_violations_by_date_range(start_date, end_date)
                 
@@ -509,7 +510,8 @@ def main():
             from .legal.database import ViolationDatabase
             
             try:
-                db = ViolationDatabase()
+                # Use project-local violations/ directory  
+                db = ViolationDatabase(violations_dir=Path('violations'))
                 output_path = Path(args.export_violations)
                 
                 if not db.violations:
@@ -529,7 +531,8 @@ def main():
             from .legal.database import ViolationDatabase
             
             try:
-                db = ViolationDatabase()
+                # Use project-local violations/ directory  
+                db = ViolationDatabase(violations_dir=Path('violations'))
                 
                 if db.violations:
                     logger.info(f"📋 Found {len(db.violations)} total violations:")

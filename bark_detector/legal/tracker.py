@@ -14,16 +14,23 @@ logger = logging.getLogger(__name__)
 class LegalViolationTracker:
     """Track and analyze bark events for legal violation detection."""
     
-    def __init__(self, violation_db: Optional[ViolationDatabase] = None, interactive: bool = True):
+    def __init__(self, violation_db: Optional[ViolationDatabase] = None, violations_dir: Path = None, interactive: bool = True):
         """Initialize the legal violation tracker.
         
         Args:
-            violation_db: ViolationDatabase instance for persistence
+            violation_db: ViolationDatabase instance for persistence (overrides violations_dir)
+            violations_dir: Directory for date-organized violations (defaults to 'violations/')
             interactive: Whether to prompt user for duplicate handling (False for testing)
         """
         self.violations = []
         self.sessions = []
-        self.violation_db = violation_db or ViolationDatabase()
+        
+        if violation_db is not None:
+            self.violation_db = violation_db
+        else:
+            # Create new ViolationDatabase with project-local violations directory
+            self.violation_db = ViolationDatabase(violations_dir=violations_dir)
+        
         self.interactive = interactive
     
     def analyze_violations(self, sessions: List[BarkingSession]) -> List[ViolationReport]:

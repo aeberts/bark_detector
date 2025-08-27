@@ -1,12 +1,12 @@
 # Priority Tasks to Discuss & Plan
+- [ ] I15 Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
 - [x] T21 Task: Review all code which analyzes bark recording files for incorrect timestamps.
-- [ ] I17 Improvement: save violation analysis database to the project's .violations/ directory with a folder for each day. e.g. `.violations/2025-08-15/2025-08-15-violations.json`. 
+- [x] I17 Improvement: Save violation analysis database to the project's violations/ directory 
 - [ ] T20 Task: Review --analyze-violations for bugs
 - [x] I18 Improvement: Violation Report Improvements
 - [ ] I14 Improvement: Add the class name that triggered the bark detector to log and console output. e.g. `INFO - 🐕 BARK DETECTED! Confidence: 0.824, Intensity: 0.375, Duration: 0.96s ([70] Bark)
 - [ ] T11 Task: Config has startup and end time - write tests to ensure this feature is working.
 - [ ] T12 Task: Compare `config` vs `profile` features - do we need both?
-- [ ] I15 Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
 - [ ] R1 Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
 
 # Backlog
@@ -42,6 +42,7 @@
 - [x] B4 Bug: Recordings start at confidence interval below 0.68.
 
 ## Implemented Improvements (Complete)
+- [x] I17 Improvement: Project-Local Violation Database Storage - Implemented comprehensive date-based violation storage system using project-local violations/ directory instead of global ~/.bark_detector/violations.json. Created date-organized file structure (violations/YYYY-MM-DD/YYYY-MM-DD-violations.json) for better legal evidence collection spanning multiple days. Enhanced ViolationDatabase with dual-mode support (new date-based vs legacy single-file) maintaining full backward compatibility. Updated LegalViolationTracker and all CLI commands (--analyze-violations, --violation-report, --export-violations) to use new project-local structure. Benefits include project isolation, better organization for multi-day evidence collection, legal compliance for city submission, scalability without single-file limitations, and portability where violations travel with project directory. Added comprehensive test coverage (15 new tests) validating date-based operations, backward compatibility, error handling, and CLI integration.
 - [x] I18 Improvement: Violation Report Improvements - Implemented comprehensive enhanced violation reporting system with time-of-day formatting and detailed per-audio-file bark analysis. Created LogBasedReportGenerator with sophisticated log parsing capabilities that extract bark detection events from date-organized log files, correlate detections with audio files, and generate reports matching specifications in improvements.md. Added --enhanced-violation-report CLI command for generating time-formatted violation summaries with precise HH:MM:SS timestamps, duration calculations, and per-audio-file bark breakdowns. System leverages rich real-time detection data from logs to provide 1-to-1 correspondence between bark detections and audio file timestamps for legal evidence preparation. Enhanced log organization with automatic date-based folder structure (logs/YYYY-MM-DD/) for better file management and report generation accuracy.
 - [x] I16 Improvement: Save reports to the `reports/` folder organized into folders by day e.g. `Violation Report 2025-08-18`
 - [x] I3 Improvement: TensorFlow Debug Output Suppression - Implemented comprehensive suppression of TensorFlow debug messages that were cluttering console output during YAMNet model loading and inference operations. Added TF_CPP_MIN_LOG_LEVEL=3, TF_ENABLE_ONEDNN_OPTS=0 environment variables, TensorFlow logger level configuration, and TensorFlow Hub warning filters across all entry points (cli.py, detector.py, bd.py). Eliminates extensive "DEBUG INFO Executor start aborting" messages and "pkg_resources is deprecated" warnings during model operations. Provides clean console output while maintaining error reporting.

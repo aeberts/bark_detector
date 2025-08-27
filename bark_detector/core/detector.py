@@ -87,8 +87,9 @@ class AdvancedBarkDetector:
         self.detection_cooldown_duration = 2.5  # Seconds to wait before reporting another bark
         self.max_recent_detections = 10  # Maximum number of recent detections to track
         
-        # Violation detection system
-        self.violation_tracker = LegalViolationTracker(interactive=True)  # Interactive by default for CLI usage
+        # Violation detection system (use project-local violations/ directory)
+        violations_dir = Path('violations')
+        self.violation_tracker = LegalViolationTracker(violations_dir=violations_dir, interactive=True)  # Interactive by default for CLI usage
         self.enable_real_time_violations = False  # Can be enabled for real-time violation detection
         
         # Create output directory
