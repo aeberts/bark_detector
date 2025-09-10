@@ -1,5 +1,6 @@
 # Priority Tasks to Discuss & Plan
-- [ ] I15 Improvement: Separate log files into separate files by day. Move logs to the `logs/` folder
+- [ ] I15 Improvement: Separate log files into separate files by day (e.g. detection log, analysis log, etc.). Move all logs to the `logs/` folder separated by date (e.g. `logs/2025-08-25/2025-08-25_bark_detection.log`, `logs/2025-08-25/2025-08-25_analysis.log).
+- [ ] I23 Improvement: Save bark events to project local mysql database in real-time for later analysis.
 - [x] T21 Task: Review all code which analyzes bark recording files for incorrect timestamps.
 - [x] I17 Improvement: Save violation analysis database to the project's violations/ directory 
 - [ ] T20 Task: Review --analyze-violations for bugs
@@ -8,8 +9,6 @@
 - [ ] T11 Task: Config has startup and end time - write tests to ensure this feature is working.
 - [ ] T12 Task: Compare `config` vs `profile` features - do we need both?
 - [ ] R1 Research: Compare PANNs-CNN14 vs YAMNet vs SemDNN & CLAP for bark detection.
-
-# Backlog
 
 ## Tests
 
