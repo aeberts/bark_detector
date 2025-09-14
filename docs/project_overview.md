@@ -26,9 +26,9 @@ Note: The Regional District of Central Okanagan (RDCO) issue reporting site uses
 
 ### Specific Violations We Target
 
-1. **Continuous Barking**: 5+ minutes of non-stop barking.
-2. **Sporadic Barking**: 15+ minutes total within a time window
-3. **Disturbance**: Any pattern that's clearly disruptive
+1. **Continuous Barking**: 5+ minutes of non-stop barking with no quiet intervals greater than 30 seconds.
+2. **Sporadic Barking**: 15+ minutes total within a time window with no quiet periods greater than 5 minutes.
+3. **Disturbance**: Any pattern that's clearly disruptive.
 
 ### Clarification on Sporadic Violations
 
