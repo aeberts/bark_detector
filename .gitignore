@@ -72,3 +72,6 @@ pyproject.toml
 scratch/
 bark_detector_flat.stats.md
 bark_detector_flat.xml
+# BMAD (local only)
+.bmad-core/
+.bmad-*/

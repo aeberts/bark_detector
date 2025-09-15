@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2025-09-15
+
+### Major Refactoring
+- **Story 1.1: Data Persistence Layer Refactoring**: Implemented comprehensive date-partitioned data persistence system with separate event and violation storage. Created new `PersistedBarkEvent` and `Violation` data models with full JSON serialization/deserialization support. Enhanced ViolationDatabase with new methods: `save_events()`, `load_events()`, `save_violations_new()`, and `load_violations_new()` for handling `[YYYY-MM-DD]_events.json` and `[YYYY-MM-DD]_violations.json` files in date-organized directory structure (`violations/[YYYY-MM-DD]/`). Added comprehensive unit test coverage (37 tests) validating model serialization, file operations, directory creation, error handling, and backward compatibility. Maintains full compatibility with existing ViolationReport-based workflows while providing foundation for enhanced raw data analysis and debugging capabilities. System now supports separation of raw detection data from formatted presentation layer, enabling more sophisticated violation analysis and legal evidence collection.
+
 ## 2025-08-23
 
 ### Critical Bug Fixes

@@ -1,0 +1,26 @@
+# Bark Detector Brownfield Enhancement Architecture
+
+## Table of Contents
+
+- [Bark Detector Brownfield Enhancement Architecture](#table-of-contents)
+  - [Introduction](./introduction.md)
+    - [Existing Project Analysis](./introduction.md#existing-project-analysis)
+    - [Change Log](./introduction.md#change-log)
+  - [Enhancement Scope and Integration Strategy](./enhancement-scope-and-integration-strategy.md)
+    - [Enhancement Overview](./enhancement-scope-and-integration-strategy.md#enhancement-overview)
+    - [Integration Approach](./enhancement-scope-and-integration-strategy.md#integration-approach)
+    - [Compatibility Requirements](./enhancement-scope-and-integration-strategy.md#compatibility-requirements)
+  - [Tech Stack Alignment](./tech-stack-alignment.md)
+    - [Existing Technology Stack](./tech-stack-alignment.md#existing-technology-stack)
+    - [New Technology Additions](./tech-stack-alignment.md#new-technology-additions)
+  - [Data Models and Schema Changes](./data-models-and-schema-changes.md)
+    - [New Data Models](./data-models-and-schema-changes.md#new-data-models)
+      - [PersistedBarkEvent](./data-models-and-schema-changes.md#persistedbarkevent)
+      - [Violation](./data-models-and-schema-changes.md#violation)
+    - [Schema Integration Strategy](./data-models-and-schema-changes.md#schema-integration-strategy)
+  - [Component Architecture](./component-architecture.md)
+    - [Modified Components](./component-architecture.md#modified-components)
+    - [Component Interaction Diagram](./component-architecture.md#component-interaction-diagram)
+  - [API Design and Integration](./api-design-and-integration.md)
+    - [API Integration Strategy](./api-design-and-integration.md#api-integration-strategy)
+    - [Modified CLI Commands](./api-design-and-integration.md#modified-cli-commands)

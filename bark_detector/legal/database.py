@@ -8,7 +8,7 @@ import os
 from typing import List, Dict
 from pathlib import Path
 from datetime import datetime
-from .models import ViolationReport
+from .models import ViolationReport, PersistedBarkEvent, Violation
 from ..utils.helpers import convert_numpy_types
 
 logger = logging.getLogger(__name__)
@@ -70,6 +70,148 @@ class ViolationDatabase:
         else:
             # Legacy single file mode
             return self.db_path
+    
+    def _get_events_file_path(self, date: str) -> Path:
+        """Get the file path for events for a specific date.
+        
+        Args:
+            date: Date in YYYY-MM-DD format
+            
+        Returns:
+            Path to the events file for that date
+        """
+        if self.use_date_structure:
+            date_dir = self.violations_dir / date
+            return date_dir / f"{date}_events.json"
+        else:
+            # Legacy mode doesn't support events files
+            raise ValueError("Events files are only supported in date-based structure mode")
+    
+    def save_events(self, events: List[PersistedBarkEvent], date: str):
+        """Save events to date-partitioned file structure.
+        
+        Args:
+            events: List of PersistedBarkEvent objects to save
+            date: Date in YYYY-MM-DD format
+        """
+        if not self.use_date_structure:
+            raise ValueError("save_events() only supported in date-based structure mode")
+        
+        if not events:
+            return
+            
+        events_file = self._get_events_file_path(date)
+        
+        try:
+            # Create directory structure
+            events_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Convert events to dictionaries
+            events_data = {
+                'events': [event.to_dict() for event in events],
+                'metadata': {
+                    'date': date,
+                    'total_events': len(events),
+                    'created_timestamp': datetime.now().isoformat()
+                }
+            }
+            
+            with open(events_file, 'w') as f:
+                json.dump(events_data, f, indent=2)
+            
+            logger.debug(f"💾 Saved {len(events)} events to {events_file}")
+                
+        except Exception as e:
+            logger.error(f"Could not save events for date {date}: {e}")
+    
+    def load_events(self, date: str) -> List[PersistedBarkEvent]:
+        """Load events for a specific date from date-partitioned file structure.
+        
+        Args:
+            date: Date in YYYY-MM-DD format
+            
+        Returns:
+            List of PersistedBarkEvent objects for that date
+        """
+        if not self.use_date_structure:
+            raise ValueError("load_events() only supported in date-based structure mode")
+        
+        events_file = self._get_events_file_path(date)
+        events = []
+        
+        try:
+            if events_file.exists():
+                with open(events_file, 'r') as f:
+                    data = json.load(f)
+                    for event_data in data.get('events', []):
+                        events.append(PersistedBarkEvent.from_dict(event_data))
+        except Exception as e:
+            logger.warning(f"Could not load events for date {date}: {e}")
+        
+        return events
+    
+    def save_violations_new(self, violations: List[Violation], date: str):
+        """Save violations to date-partitioned file structure.
+        
+        Args:
+            violations: List of Violation objects to save
+            date: Date in YYYY-MM-DD format
+        """
+        if not self.use_date_structure:
+            raise ValueError("save_violations_new() only supported in date-based structure mode")
+        
+        if not violations:
+            return
+            
+        violations_file = self._get_violations_file_path(date)
+        
+        try:
+            # Create directory structure
+            violations_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Convert violations to dictionaries
+            violations_data = {
+                'violations': [violation.to_dict() for violation in violations],
+                'metadata': {
+                    'date': date,
+                    'total_violations': len(violations),
+                    'created_timestamp': datetime.now().isoformat()
+                }
+            }
+            
+            with open(violations_file, 'w') as f:
+                json.dump(violations_data, f, indent=2)
+            
+            logger.debug(f"💾 Saved {len(violations)} violations to {violations_file}")
+                
+        except Exception as e:
+            logger.error(f"Could not save violations for date {date}: {e}")
+    
+    def load_violations_new(self, date: str) -> List[Violation]:
+        """Load violations for a specific date from date-partitioned file structure.
+        
+        Args:
+            date: Date in YYYY-MM-DD format
+            
+        Returns:
+            List of Violation objects for that date
+        """
+        if not self.use_date_structure:
+            raise ValueError("load_violations_new() only supported in date-based structure mode")
+        
+        violations_file = self._get_violations_file_path(date)
+        violations = []
+        
+        try:
+            if violations_file.exists():
+                with open(violations_file, 'r') as f:
+                    data = json.load(f)
+                    for violation_data in data.get('violations', []):
+                        violations.append(Violation.from_dict(violation_data))
+        except Exception as e:
+            logger.warning(f"Could not load violations for date {date}: {e}")
+        
+        return violations
     
     def _load_violations_legacy(self):
         """Load existing violations from legacy single database file."""

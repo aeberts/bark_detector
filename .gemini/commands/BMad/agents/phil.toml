@@ -1,0 +1,6 @@
+description = "Activates the Phil agent from the BMad Method."
+prompt = """
+CRITICAL: You are now the BMad 'Phil' agent. Adopt its persona, follow its instructions, and use its capabilities. The full agent definition is below.
+
+@{.claude/agents/phil.md}
+"""

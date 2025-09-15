@@ -168,6 +168,35 @@
 - **Detailed Violation Reports**: Each violation report includes exact dates, times, durations, violation types, confidence scores, audio file references, and metadata for legal evidence
 - **CLI Integration**: Accessible via `--analyze-violations DATE` command with comprehensive logging and progress reporting
 - **Comprehensive Test Coverage**: Full integration testing ensures reliability for legal evidence collection
+- **Enhanced Data Persistence**: Raw bark events and violations stored separately in date-partitioned JSON files for detailed forensic analysis and debugging
+
+## FEATURE: Enhanced Data Persistence Layer
+### User Requirements
+- Robust, portable data storage for bark detection events and violation analysis
+- Separation of raw detection data from formatted presentation reports
+- Date-partitioned organization for easy management and legal evidence collection
+- Comprehensive forensic data for debugging and analysis improvement
+### Specifications
+- **Status**: Fully implemented
+- **Date-Partitioned File Structure**: Organizes data in `violations/[YYYY-MM-DD]/` directories with separate files for events and violations
+- **Raw Event Storage**: `[YYYY-MM-DD]_events.json` files contain detailed `PersistedBarkEvent` records with:
+  - Real-world timestamps (date, time) when barks occurred
+  - Unique bark IDs for cross-referencing
+  - Bark type classification (Bark, Howl, Yip, etc.)
+  - Audio file correlation with precise timestamps
+  - Confidence scores and intensity measurements
+  - Optional dog size estimation for future analysis
+- **Violation Storage**: `[YYYY-MM-DD]_violations.json` files contain raw `Violation` analysis results with:
+  - Unique violation IDs and classification (Constant/Intermittent)
+  - Precise start/end times for legal evidence
+  - Arrays of bark event ID references for traceability
+  - Separation from formatted ViolationReport for debugging flexibility
+- **Data Models**: Comprehensive `PersistedBarkEvent` and `Violation` models with full JSON serialization/deserialization
+- **API Methods**: New ViolationDatabase methods (`save_events()`, `load_events()`, `save_violations_new()`, `load_violations_new()`) for date-based operations
+- **Backward Compatibility**: Full compatibility with existing ViolationReport-based workflows and legacy single-file mode
+- **Directory Management**: Automatic creation of date-based folder structure with metadata tracking
+- **Error Handling**: Comprehensive error handling for file operations, missing directories, and data corruption
+- **Test Coverage**: 37 comprehensive unit tests covering model serialization, file operations, and compatibility
 
 ## PLANNED FEATURE: Legal Evidence Collection
 ### User Requirements
