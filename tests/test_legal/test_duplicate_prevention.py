@@ -160,10 +160,12 @@ class TestDuplicateViolationPrevention:
         assert violations[0].violation_type == "Intermittent"
         assert violations[1].violation_type == "Constant"
     
-    @patch('librosa.load')
-    def test_tracker_non_interactive_mode(self, mock_librosa_load, temp_db, tmp_path):
+    @patch('bark_detector.legal.tracker.librosa.load')
+    def test_tracker_non_interactive_mode(self, mock_librosa_load, tmp_path):
         """Test that tracker in non-interactive mode overwrites existing violations"""
-        db = ViolationDatabase(temp_db)
+        # Use date-based violations directory
+        violations_dir = tmp_path / "violations"
+        db = ViolationDatabase(violations_dir=violations_dir)
         tracker = LegalViolationTracker(violation_db=db, interactive=False)
         
         # Create mock detector

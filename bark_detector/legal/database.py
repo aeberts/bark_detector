@@ -236,22 +236,49 @@ class ViolationDatabase:
         """Load violations for a specific date from date-based file structure."""
         violations_file = self._get_violations_file_path(date)
         violations = []
-        
+
         try:
             if violations_file.exists():
                 with open(violations_file, 'r') as f:
                     data = json.load(f)
                     for violation_data in data.get('violations', []):
+                        # Remove violation_id field if present (new format compatibility)
+                        if 'violation_id' in violation_data:
+                            violation_data.pop('violation_id')
+
+                        # Handle different field names between Violation and ViolationReport models
+                        # Map Violation model fields to ViolationReport fields
+                        if 'violation_date' in violation_data:
+                            violation_data['date'] = violation_data.pop('violation_date')
+                        if 'violation_start_time' in violation_data:
+                            violation_data['start_time'] = violation_data.pop('violation_start_time')
+                        if 'violation_end_time' in violation_data:
+                            violation_data['end_time'] = violation_data.pop('violation_end_time')
+                        # Remove bark_event_ids as ViolationReport doesn't have this field
+                        if 'bark_event_ids' in violation_data:
+                            violation_data.pop('bark_event_ids')
+
+                        # Add required ViolationReport fields that Violation model doesn't have
+                        violation_data.setdefault('total_bark_duration', 0.0)
+                        violation_data.setdefault('total_incident_duration', 0.0)
+                        violation_data.setdefault('audio_files', [])
+                        violation_data.setdefault('audio_file_start_times', [])
+                        violation_data.setdefault('audio_file_end_times', [])
+                        violation_data.setdefault('confidence_scores', [])
+                        violation_data.setdefault('peak_confidence', 0.0)
+                        violation_data.setdefault('avg_confidence', 0.0)
+                        violation_data.setdefault('created_timestamp', '')
+
                         # Add backward compatibility for records without new timestamp fields
                         if 'audio_file_start_times' not in violation_data:
                             violation_data['audio_file_start_times'] = ["00:00:00"] * len(violation_data.get('audio_files', []))
                         if 'audio_file_end_times' not in violation_data:
                             violation_data['audio_file_end_times'] = ["00:00:00"] * len(violation_data.get('audio_files', []))
-                        
+
                         violations.append(ViolationReport(**violation_data))
         except Exception as e:
             logger.warning(f"Could not load violations for date {date}: {e}")
-        
+
         return violations
     
     def _save_violations_for_date(self, violations: List[ViolationReport], date: str):

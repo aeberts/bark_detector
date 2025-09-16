@@ -1,10 +1,12 @@
 """Legal violation tracker for bylaw compliance"""
 
 import logging
+import uuid
+import librosa
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
-from .models import ViolationReport, LegalSporadicSession
+from .models import ViolationReport, LegalSporadicSession, PersistedBarkEvent, Violation
 from .database import ViolationDatabase
 from ..core.models import BarkingSession
 
@@ -83,13 +85,13 @@ class LegalViolationTracker:
         
         # Analyze each recording using advanced bark detection
         all_sessions = []
+        all_bark_events = []  # Collect all PersistedBarkEvent objects
         total_analyzed_duration = 0
         
         for recording_file in date_recordings:
             logger.info(f"Analyzing recording: {recording_file.name}")
             try:
                 # Load and analyze audio with YAMNet
-                import librosa
                 audio_data, sr = librosa.load(str(recording_file), sr=detector.sample_rate)
                 
                 if len(audio_data) == 0:
@@ -100,11 +102,17 @@ class LegalViolationTracker:
                 
                 # Use detector's advanced bark detection
                 bark_events = detector._detect_barks_in_buffer(audio_data)
-                
+
                 if not bark_events:
                     logger.debug(f"No bark events detected in {recording_file.name}")
                     continue
-                
+
+                # Convert bark events to PersistedBarkEvent objects
+                file_persisted_events = self._convert_to_persisted_events(
+                    bark_events, recording_file.name, target_date
+                )
+                all_bark_events.extend(file_persisted_events)
+
                 # Convert events to sessions using gap threshold
                 sessions = self._events_to_sessions(bark_events, detector.session_gap_threshold)
                 
@@ -125,58 +133,31 @@ class LegalViolationTracker:
             logger.info(f"No bark events detected in recordings for {target_date}")
             return []
         
+        # Save all detected bark events to database
+        if all_bark_events:
+            logger.info(f"💾 Saving {len(all_bark_events)} bark events to database")
+            self.violation_db.save_events(all_bark_events, target_date)
+
         # Detect violations using session analysis
-        violations = self.analyze_violations(all_sessions)
-        
-        # Add date context to violations
-        for violation in violations:
+        violation_reports = self.analyze_violations(all_sessions)
+
+        # Add date context to violation reports
+        for violation in violation_reports:
             violation.date = target_date
+
+        # Convert ViolationReport objects to Violation objects for new persistence
+        violations = self._convert_to_violation_objects(violation_reports, all_bark_events, target_date)
         
-        logger.info(f"Detected {len(violations)} violations for {target_date}")
-        for i, violation in enumerate(violations, 1):
+        logger.info(f"Detected {len(violation_reports)} violations for {target_date}")
+        for i, violation in enumerate(violation_reports, 1):
             logger.info(f"  {violation.violation_type} violation: {violation.start_time} - {violation.end_time} ({violation.total_bark_duration/60:.1f}min barking)")
         
-        # Save violations to database for later retrieval by --violation-report
+        # Save violations to database using new persistence layer
         if violations:
-            # Check if violations already exist for this date
-            if self.violation_db.has_violations_for_date(target_date):
-                existing_violations = self.violation_db.get_violations_by_date(target_date)
-                logger.warning(f"⚠️  Found {len(existing_violations)} existing violations for {target_date}")
-                
-                if self.interactive:
-                    # Ask user what to do
-                    print(f"\n🗓️  Existing violations found for {target_date}:")
-                    for i, v in enumerate(existing_violations, 1):
-                        print(f"   {i}. {v.violation_type} - {v.total_bark_duration/60:.1f}min")
-                    
-                    print("\n🤔 What would you like to do?")
-                    print("  [o] Overwrite existing violations with new analysis")
-                    print("  [k] Keep existing violations (abort analysis)")
-                    print("  [a] Add new violations alongside existing ones")
-                    
-                    while True:
-                        choice = input("\nChoice [o/k/a]: ").lower().strip()
-                        if choice in ['o', 'overwrite']:
-                            self.violation_db.add_violations_for_date(violations, target_date, overwrite=True)
-                            break
-                        elif choice in ['k', 'keep']:
-                            logger.info("🚫 Analysis aborted - keeping existing violations")
-                            return existing_violations  # Return existing violations, don't save new ones
-                        elif choice in ['a', 'add']:
-                            self.violation_db.add_violations_for_date(violations, target_date, overwrite=False)
-                            logger.info("➕ Added new violations alongside existing ones")
-                            break
-                        else:
-                            print("❌ Invalid choice. Please enter 'o', 'k', or 'a'")
-                else:
-                    # Non-interactive mode (for testing): default to overwrite
-                    logger.info("🔄 Non-interactive mode: overwriting existing violations")
-                    self.violation_db.add_violations_for_date(violations, target_date, overwrite=True)
-            else:
-                # No existing violations, save normally
-                self.violation_db.add_violations_for_date(violations, target_date, overwrite=False)
-        
-        return violations
+            logger.info(f"💾 Saving {len(violations)} violations to database")
+            self.violation_db.save_violations_new(violations, target_date)
+
+        return violation_reports
         
     def _events_to_sessions(self, bark_events: List, gap_threshold: float) -> List[BarkingSession]:
         """Convert bark events to barking sessions using gap threshold."""
@@ -390,3 +371,192 @@ class LegalViolationTracker:
         """Track a barking session for violation analysis."""
         self.sessions.append(session)
         logger.debug(f"Tracked session: {len(session.events)} bark events")
+
+    def _convert_to_persisted_events(self, bark_events: List, audio_file_name: str, target_date: str) -> List[PersistedBarkEvent]:
+        """Convert bark events to PersistedBarkEvent objects for database persistence.
+
+        Args:
+            bark_events: List of bark event objects from detector
+            audio_file_name: Name of the audio file containing these events
+            target_date: Date in YYYY-MM-DD format
+
+        Returns:
+            List of PersistedBarkEvent objects
+        """
+        persisted_events = []
+
+        for event in bark_events:
+            # Generate unique bark ID
+            bark_id = str(uuid.uuid4())
+
+            # Extract bark type from event with enhanced detection
+            bark_type = "Bark"  # Default value
+
+            # Try to get bark type from different possible attributes
+            if hasattr(event, 'triggering_classes') and event.triggering_classes:
+                # Use the first (highest confidence) triggering class
+                bark_type = event.triggering_classes[0]
+            elif hasattr(event, 'class_name'):
+                bark_type = event.class_name
+            elif hasattr(event, 'bark_type'):
+                bark_type = event.bark_type
+
+            # Calculate real-world time from audio file timestamp
+            # For now, use the audio file timestamp as the real-world time
+            realworld_time = self._format_timestamp_to_time(event.start_time)
+
+            # Calculate timestamp within audio file with millisecond precision
+            bark_audiofile_timestamp = self._format_timestamp_with_milliseconds(event.start_time)
+
+            persisted_event = PersistedBarkEvent(
+                realworld_date=target_date,
+                realworld_time=realworld_time,
+                bark_id=bark_id,
+                bark_type=bark_type,
+                est_dog_size=None,  # Optional field for future use
+                audio_file_name=audio_file_name,
+                bark_audiofile_timestamp=bark_audiofile_timestamp,
+                confidence=float(event.confidence),
+                intensity=float(getattr(event, 'intensity', 0.0))
+            )
+
+            persisted_events.append(persisted_event)
+
+        return persisted_events
+
+    def _convert_to_violation_objects(self, violation_reports: List[ViolationReport],
+                                    all_bark_events: List[PersistedBarkEvent],
+                                    target_date: str) -> List[Violation]:
+        """Convert ViolationReport objects to Violation objects for new persistence layer.
+
+        Args:
+            violation_reports: List of ViolationReport objects from analysis
+            all_bark_events: List of all PersistedBarkEvent objects for the date
+            target_date: Date in YYYY-MM-DD format
+
+        Returns:
+            List of Violation objects
+        """
+        violations = []
+
+        for report in violation_reports:
+            # Generate unique violation ID
+            violation_id = str(uuid.uuid4())
+
+            # Find associated bark events for this violation based on time range
+            bark_event_ids = self._find_events_for_violation(report, all_bark_events)
+
+            violation = Violation(
+                violation_id=violation_id,
+                violation_type=report.violation_type,
+                violation_date=target_date,
+                violation_start_time=report.start_time,
+                violation_end_time=report.end_time,
+                bark_event_ids=bark_event_ids
+            )
+
+            violations.append(violation)
+
+        return violations
+
+    def _format_timestamp_to_time(self, timestamp_seconds: float) -> str:
+        """Convert timestamp in seconds to HH:MM:SS format.
+
+        Args:
+            timestamp_seconds: Timestamp in seconds
+
+        Returns:
+            Time string in HH:MM:SS format
+        """
+        hours = int(timestamp_seconds // 3600)
+        minutes = int((timestamp_seconds % 3600) // 60)
+        seconds = int(timestamp_seconds % 60)
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+    def _format_timestamp_with_milliseconds(self, timestamp_seconds: float) -> str:
+        """Convert timestamp in seconds to HH:MM:SS.mmm format.
+
+        Args:
+            timestamp_seconds: Timestamp in seconds
+
+        Returns:
+            Time string in HH:MM:SS.mmm format
+        """
+        hours = int(timestamp_seconds // 3600)
+        minutes = int((timestamp_seconds % 3600) // 60)
+        seconds = timestamp_seconds % 60
+        whole_seconds = int(seconds)
+        milliseconds = int((seconds - whole_seconds) * 1000)
+        return f"{hours:02d}:{minutes:02d}:{whole_seconds:02d}.{milliseconds:03d}"
+
+    def _find_events_for_violation(self, violation_report: ViolationReport,
+                                 all_bark_events: List[PersistedBarkEvent]) -> List[str]:
+        """Find bark event IDs that correlate with a specific violation.
+
+        Args:
+            violation_report: ViolationReport containing violation time range
+            all_bark_events: List of all PersistedBarkEvent objects for the date
+
+        Returns:
+            List of bark_id strings associated with this violation
+        """
+        # Convert violation start/end times to seconds for comparison
+        violation_start_seconds = self._parse_time_to_seconds(violation_report.start_time)
+        violation_end_seconds = self._parse_time_to_seconds(violation_report.end_time)
+
+        matching_event_ids = []
+
+        for event in all_bark_events:
+            # Convert event time to seconds
+            event_seconds = self._parse_time_to_seconds(event.realworld_time)
+
+            # Check if event falls within violation time range
+            if violation_start_seconds <= event_seconds <= violation_end_seconds:
+                matching_event_ids.append(event.bark_id)
+
+        return matching_event_ids
+
+    def _parse_time_to_seconds(self, time_str: str) -> float:
+        """Parse time string to seconds since midnight.
+
+        Args:
+            time_str: Time string in various formats (HH:MM:SS, HH:MM AM/PM, etc.)
+
+        Returns:
+            Seconds since midnight as float
+        """
+        try:
+            time_str = time_str.strip()
+
+            # Handle AM/PM format first
+            if 'AM' in time_str or 'PM' in time_str:
+                is_pm = 'PM' in time_str
+                time_part = time_str.replace('AM', '').replace('PM', '').strip()
+                parts = time_part.split(':')
+
+                hours = int(parts[0])
+                minutes = int(parts[1]) if len(parts) > 1 else 0
+
+                # Convert to 24-hour format
+                if is_pm and hours != 12:
+                    hours += 12
+                elif not is_pm and hours == 12:
+                    hours = 0
+
+                return hours * 3600 + minutes * 60
+
+            # Handle 24-hour format (HH:MM:SS, HH:MM:SS.mmm, or HH:MM)
+            if ':' in time_str:
+                parts = time_str.split(':')
+                hours = int(parts[0])
+                minutes = int(parts[1]) if len(parts) > 1 else 0
+                seconds = float(parts[2]) if len(parts) > 2 else 0.0
+
+                return hours * 3600 + minutes * 60 + seconds
+
+            # Fallback: assume it's already in seconds
+            return float(time_str)
+
+        except (ValueError, IndexError) as e:
+            logger.warning(f"Could not parse time string '{time_str}': {e}")
+            return 0.0

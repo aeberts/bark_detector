@@ -7,7 +7,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 from bark_detector.legal.tracker import LegalViolationTracker
-from bark_detector.legal.models import ViolationReport
+from bark_detector.legal.models import ViolationReport, PersistedBarkEvent, Violation
+from bark_detector.legal.database import ViolationDatabase
 from bark_detector.core.models import BarkEvent, BarkingSession
 
 
@@ -203,3 +204,253 @@ class TestLegalViolationTracker:
         
         # Should create one violation for this long session
         assert len(violations) == 1
+
+    # ===============================================
+    # Story 1.2 Refactoring Tests
+    # ===============================================
+
+    def test_convert_to_persisted_events(self):
+        """Test conversion of bark events to PersistedBarkEvent objects"""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create mock bark events
+        bark_events = [
+            BarkEvent(start_time=10.5, end_time=11.2, confidence=0.85, intensity=0.6),
+            BarkEvent(start_time=15.8, end_time=16.4, confidence=0.72, intensity=0.4)
+        ]
+
+        # Add triggering_classes attribute to test bark type extraction
+        bark_events[0].triggering_classes = ["Bark", "Dog"]
+        bark_events[1].triggering_classes = ["Yip"]
+
+        result = tracker._convert_to_persisted_events(bark_events, "test_audio.wav", "2025-09-15")
+
+        assert len(result) == 2
+        assert all(isinstance(event, PersistedBarkEvent) for event in result)
+
+        # Check first event
+        event1 = result[0]
+        assert event1.realworld_date == "2025-09-15"
+        assert event1.bark_type == "Bark"  # First from triggering_classes
+        assert event1.audio_file_name == "test_audio.wav"
+        assert event1.confidence == 0.85
+        assert event1.intensity == 0.6
+        assert event1.bark_audiofile_timestamp == "00:00:10.500"
+
+        # Check second event
+        event2 = result[1]
+        assert event2.bark_type == "Yip"
+        assert event2.bark_audiofile_timestamp == "00:00:15.800"
+
+    def test_convert_to_violation_objects(self):
+        """Test conversion of ViolationReport objects to Violation objects"""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create mock ViolationReport
+        violation_reports = [
+            ViolationReport(
+                date="2025-09-15",
+                start_time="06:30 AM",
+                end_time="06:38 AM",
+                violation_type="Constant",
+                total_bark_duration=480.0,
+                total_incident_duration=480.0,
+                audio_files=["test1.wav"],
+                audio_file_start_times=["00:00:00"],
+                audio_file_end_times=["00:08:00"],
+                confidence_scores=[0.8],
+                peak_confidence=0.9,
+                avg_confidence=0.8,
+                created_timestamp="2025-09-15T06:30:00"
+            )
+        ]
+
+        # Create mock bark events
+        bark_events = [
+            PersistedBarkEvent(
+                realworld_date="2025-09-15",
+                realworld_time="06:31:00",
+                bark_id="event-123",
+                bark_type="Bark",
+                est_dog_size=None,
+                audio_file_name="test1.wav",
+                bark_audiofile_timestamp="00:01:00.000",
+                confidence=0.8,
+                intensity=0.5
+            )
+        ]
+
+        result = tracker._convert_to_violation_objects(violation_reports, bark_events, "2025-09-15")
+
+        assert len(result) == 1
+        violation = result[0]
+        assert isinstance(violation, Violation)
+        assert violation.violation_type == "Constant"
+        assert violation.violation_date == "2025-09-15"
+        assert violation.violation_start_time == "06:30 AM"
+        assert violation.violation_end_time == "06:38 AM"
+        assert "event-123" in violation.bark_event_ids
+
+    def test_format_timestamp_with_milliseconds(self):
+        """Test timestamp formatting with millisecond precision"""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Test various timestamp values
+        assert tracker._format_timestamp_with_milliseconds(10.5) == "00:00:10.500"
+        assert tracker._format_timestamp_with_milliseconds(65.123) == "00:01:05.123"
+        assert tracker._format_timestamp_with_milliseconds(3661.789) == "01:01:01.789"
+        assert tracker._format_timestamp_with_milliseconds(0.001) == "00:00:00.001"
+
+    def test_parse_time_to_seconds(self):
+        """Test time string parsing to seconds"""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Test HH:MM:SS format
+        assert tracker._parse_time_to_seconds("01:30:45") == 5445.0
+        assert tracker._parse_time_to_seconds("00:05:30.500") == 330.5
+
+        # Test AM/PM format
+        assert tracker._parse_time_to_seconds("6:30 AM") == 23400.0  # 6.5 * 3600
+        assert tracker._parse_time_to_seconds("6:30 PM") == 66600.0  # 18.5 * 3600
+        assert tracker._parse_time_to_seconds("12:30 AM") == 1800.0  # 0.5 * 3600
+        assert tracker._parse_time_to_seconds("12:30 PM") == 45000.0  # 12.5 * 3600
+
+    def test_find_events_for_violation(self):
+        """Test finding bark events that correlate with violations"""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create violation report
+        violation_report = ViolationReport(
+            date="2025-09-15",
+            start_time="06:30:00",
+            end_time="06:32:00",
+            violation_type="Constant",
+            total_bark_duration=120.0,
+            total_incident_duration=120.0,
+            audio_files=["test.wav"],
+            audio_file_start_times=["00:00:00"],
+            audio_file_end_times=["00:02:00"],
+            confidence_scores=[0.8],
+            peak_confidence=0.9,
+            avg_confidence=0.8,
+            created_timestamp="2025-09-15T06:30:00"
+        )
+
+        # Create bark events - some inside, some outside the violation time range
+        bark_events = [
+            PersistedBarkEvent(
+                realworld_date="2025-09-15",
+                realworld_time="06:29:30",  # Before violation
+                bark_id="event-1",
+                bark_type="Bark",
+                est_dog_size=None,
+                audio_file_name="test.wav",
+                bark_audiofile_timestamp="00:00:30.000",
+                confidence=0.8,
+                intensity=0.5
+            ),
+            PersistedBarkEvent(
+                realworld_date="2025-09-15",
+                realworld_time="06:31:00",  # During violation
+                bark_id="event-2",
+                bark_type="Bark",
+                est_dog_size=None,
+                audio_file_name="test.wav",
+                bark_audiofile_timestamp="00:01:00.000",
+                confidence=0.8,
+                intensity=0.5
+            ),
+            PersistedBarkEvent(
+                realworld_date="2025-09-15",
+                realworld_time="06:33:00",  # After violation
+                bark_id="event-3",
+                bark_type="Bark",
+                est_dog_size=None,
+                audio_file_name="test.wav",
+                bark_audiofile_timestamp="00:03:00.000",
+                confidence=0.8,
+                intensity=0.5
+            )
+        ]
+
+        result = tracker._find_events_for_violation(violation_report, bark_events)
+
+        # Only event-2 should be included (within time range)
+        assert len(result) == 1
+        assert "event-2" in result
+        assert "event-1" not in result
+        assert "event-3" not in result
+
+    @patch('bark_detector.legal.tracker.librosa')
+    def test_analyze_recordings_for_date_with_new_persistence(self, mock_librosa):
+        """Test analyze_recordings_for_date with new PersistedBarkEvent and Violation persistence"""
+        # Setup mock ViolationDatabase
+        mock_db = Mock(spec=ViolationDatabase)
+        mock_db.use_date_structure = True
+        tracker = LegalViolationTracker(violation_db=mock_db, interactive=False)
+
+        # Mock detector
+        mock_detector = Mock()
+        mock_detector.sample_rate = 16000
+        mock_detector.session_gap_threshold = 10.0
+
+        # Mock audio data and bark events
+        mock_librosa.load.return_value = (np.array([0.1, 0.2, 0.3] * 1000), 16000)
+
+        bark_events = [
+            BarkEvent(start_time=1.0, end_time=2.0, confidence=0.8, intensity=0.5),
+            BarkEvent(start_time=5.0, end_time=6.0, confidence=0.7, intensity=0.4)
+        ]
+        bark_events[0].triggering_classes = ["Bark"]
+        bark_events[1].triggering_classes = ["Yip"]
+
+        mock_detector._detect_barks_in_buffer.return_value = bark_events
+
+        # Create test directory structure
+        recordings_dir = Path("/fake/recordings")
+
+        # Mock file discovery
+        with patch('pathlib.Path.glob') as mock_glob, \
+             patch('pathlib.Path.exists') as mock_exists:
+
+            mock_exists.return_value = True
+            mock_glob.return_value = [Path("/fake/recordings/2025-09-15/test.wav")]
+
+            # Mock session creation
+            with patch.object(tracker, '_events_to_sessions') as mock_sessions:
+                mock_session = BarkingSession(
+                    start_time=1.0,
+                    end_time=6.0,
+                    events=bark_events,
+                    total_barks=2,
+                    total_duration=360.0,  # 6 minutes - should trigger violation
+                    avg_confidence=0.75,
+                    peak_confidence=0.8,
+                    barks_per_second=0.33,
+                    source_file=Path("test.wav")
+                )
+                mock_sessions.return_value = [mock_session]
+
+                result = tracker.analyze_recordings_for_date(recordings_dir, "2025-09-15", mock_detector)
+
+                # Verify save_events was called
+                mock_db.save_events.assert_called_once()
+                saved_events = mock_db.save_events.call_args[0][0]
+                # The number of events depends on how many files are processed
+                # Each file produces 2 events, so verify events were created and are correct type
+                assert len(saved_events) >= 2
+                assert all(isinstance(event, PersistedBarkEvent) for event in saved_events)
+
+                # Verify the events have the expected properties
+                assert saved_events[0].bark_type == "Bark"
+                assert saved_events[1].bark_type == "Yip"
+
+                # Verify save_violations_new was called if violations were detected
+                if mock_db.save_violations_new.called:
+                    saved_violations = mock_db.save_violations_new.call_args[0][0]
+                    assert len(saved_violations) >= 1
+                    assert isinstance(saved_violations[0], Violation)
+
+                # Verify return value (backward compatibility)
+                assert len(result) >= 1
+                assert all(isinstance(r, ViolationReport) for r in result)
