@@ -66,7 +66,7 @@ class ViolationDatabase:
         """
         if self.use_date_structure:
             date_dir = self.violations_dir / date
-            return date_dir / f"{date}-violations.json"
+            return date_dir / f"{date}_violations.json"
         else:
             # Legacy single file mode
             return self.db_path

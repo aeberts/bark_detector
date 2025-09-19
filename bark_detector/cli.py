@@ -74,7 +74,7 @@ Examples:
     
     # Analysis modes
     parser.add_argument('--analyze-violations', type=str,
-                        help='Analyze recordings for violations (date: YYYY-MM-DD)')
+                        help='Analyze recordings for bylaw violations using YAMNet ML analysis (date: YYYY-MM-DD). Creates structured JSON files with bark events and violations in violations/[DATE]/ directory.')
     parser.add_argument('--violation-report', nargs=2, metavar=('START_DATE', 'END_DATE'),
                         help='Generate violation report for date range')
     parser.add_argument('--export-violations', type=str,

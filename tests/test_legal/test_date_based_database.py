@@ -67,7 +67,7 @@ class TestDateBasedViolationDatabase:
             
             # Test path generation
             test_date = '2025-08-15'
-            expected_path = violations_dir / '2025-08-15' / '2025-08-15-violations.json'
+            expected_path = violations_dir / '2025-08-15' / '2025-08-15_violations.json'
             
             result_path = db._get_violations_file_path(test_date)
             assert result_path == expected_path
@@ -100,7 +100,7 @@ class TestDateBasedViolationDatabase:
             
             # Verify directory and file were created
             expected_dir = violations_dir / '2025-08-15'
-            expected_file = expected_dir / '2025-08-15-violations.json'
+            expected_file = expected_dir / '2025-08-15_violations.json'
             
             assert expected_dir.exists()
             assert expected_file.exists()
@@ -142,7 +142,7 @@ class TestDateBasedViolationDatabase:
                 }]
             }
             
-            violations_file = date_dir / f'{test_date}-violations.json'
+            violations_file = date_dir / f'{test_date}_violations.json'
             with open(violations_file, 'w') as f:
                 json.dump(test_data, f)
             
@@ -168,7 +168,7 @@ class TestDateBasedViolationDatabase:
             date_dir = violations_dir / test_date
             date_dir.mkdir(parents=True)
             
-            violations_file = date_dir / f'{test_date}-violations.json'
+            violations_file = date_dir / f'{test_date}_violations.json'
             test_data = {
                 'violations': [{
                     'date': test_date,
@@ -290,7 +290,7 @@ class TestDateBasedViolationDatabase:
             
             # Verify it exists
             assert db.has_violations_for_date('2025-08-15') is True
-            violations_file = violations_dir / '2025-08-15' / '2025-08-15-violations.json'
+            violations_file = violations_dir / '2025-08-15' / '2025-08-15_violations.json'
             assert violations_file.exists()
             
             # Remove violations
@@ -809,7 +809,7 @@ class TestNewDatabaseMethods:
             
             # Verify directory and file were created
             expected_dir = violations_dir / '2025-08-15'
-            expected_file = expected_dir / '2025-08-15-violations.json'
+            expected_file = expected_dir / '2025-08-15_violations.json'
             
             assert expected_dir.exists()
             assert expected_file.exists()
@@ -850,7 +850,7 @@ class TestNewDatabaseMethods:
                 }
             }
             
-            violations_file = date_dir / f'{test_date}-violations.json'
+            violations_file = date_dir / f'{test_date}_violations.json'
             with open(violations_file, 'w') as f:
                 json.dump(test_data, f)
             
@@ -883,7 +883,7 @@ class TestNewDatabaseMethods:
             # Save empty list - should not create files
             db.save_violations_new([], '2025-08-15')
             
-            violations_file = violations_dir / '2025-08-15' / '2025-08-15-violations.json'
+            violations_file = violations_dir / '2025-08-15' / '2025-08-15_violations.json'
             assert not violations_file.exists()
     
     def test_load_events_nonexistent_file(self):
@@ -990,7 +990,7 @@ class TestBackwardCompatibility:
             db.save_violations()
             
             # Should be saved to date-based structure
-            violations_file = violations_dir / '2025-08-15' / '2025-08-15-violations.json'
+            violations_file = violations_dir / '2025-08-15' / '2025-08-15_violations.json'
             assert violations_file.exists()
     
     def test_dual_mode_support_maintained(self):

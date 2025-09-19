@@ -205,6 +205,50 @@ Precision: 67%, Recall: 89%, F1: 0.766
 Precision: 89%, Recall: 85%, F1: 0.870  ← Best F1 Score
 ...
 
+## Violation Analysis
+
+The `--analyze-violations` command performs deep analysis of recorded audio files to detect legal bylaw violations using advanced YAMNet ML analysis.
+
+### Analyze Recordings for Violations
+```bash
+# Analyze recordings for a specific date
+uv run python -m bark_detector --analyze-violations 2025-09-19
+```
+
+### What Happens During Analysis:
+1. **Audio Processing**: Loads all audio recordings for the specified date using YAMNet ML model
+2. **Bark Detection**: Identifies individual bark events with confidence scores and timestamps
+3. **Session Grouping**: Groups bark events into sessions using gap threshold hierarchy
+4. **Violation Detection**: Analyzes sessions for bylaw violations:
+   - **Continuous**: 5+ minutes of constant barking
+   - **Intermittent**: 15+ minutes total barking within sporadic sessions
+5. **Data Persistence**: Saves analysis results to structured JSON files:
+   - `violations/YYYY-MM-DD/YYYY-MM-DD_events.json` - Raw bark detection events
+   - `violations/YYYY-MM-DD/YYYY-MM-DD_violations.json` - Legal violation analysis
+
+### File Structure
+```
+violations/
+├── 2025-09-19/
+│   ├── 2025-09-19_events.json     # Raw bark detection data
+│   └── 2025-09-19_violations.json # Legal violation analysis
+└── 2025-09-20/
+    ├── 2025-09-20_events.json
+    └── 2025-09-20_violations.json
+```
+
+### Example Output:
+```
+🔍 Analyzing recordings for violations on 2025-09-19
+Found 15 recording files for 2025-09-19
+Analyzing recording: bark_recording_20250919_143015.wav
+...
+Detected 2 violations for 2025-09-19
+  Intermittent violation: 14:30:00 - 14:45:00 (12.3min barking)
+  Continuous violation: 15:20:00 - 15:27:00 (7.1min barking)
+💾 Saving violations and events to database
+```
+
 ## Usage Examples
 
 ### Discover Voice Memo files:

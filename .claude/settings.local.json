@@ -7,7 +7,8 @@
       "WebFetch(domain:docs.anthropic.com)",
       "Bash(uv run:*)",
       "Bash(mkdir:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

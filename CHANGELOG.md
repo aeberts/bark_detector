@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## 2025-09-19
+
+### Story Development and Quality Assurance
+- **Story 2.1: Dual-Sensitivity Bark Detection - Quality Enhancement**: Completed comprehensive quality assessment and test strategy development for dual-sensitivity bark detection implementation. Enhanced story from Draft to Approved status with quality gate elevation from CONCERNS (70/100) to PASS (95/100). Added 35+ specific test methods across 7 comprehensive categories covering configuration validation, ML detection enhancement, quantitative improvement validation, backward compatibility regression testing, cross-component integration, error handling, and performance assessment. Defined statistical validation methodology for AC6 (50%+ detection improvement) with baseline measurements, confidence intervals, and ground truth testing using existing sample audio files. Created complete backward compatibility test suite ensuring CLI commands, configuration files, and detector initialization maintain existing functionality. Designed end-to-end integration testing approach validating analysis_sensitivity flow through CLI→Config→Detector→Tracker pipeline. Established performance benchmarking framework with <10% impact acceptance criteria for analysis mode processing. All 6 acceptance criteria now have comprehensive test coverage with risk mitigation strategies addressing ML detection logic changes, configuration system enhancements, and legal evidence reliability requirements. Story ready for implementation with detailed TDD guidance and validation framework.
+
+### Bug Fixes
+- **Story 1.3: Enhanced `--analyze-violations` Command**: Fixed critical filename format inconsistency bug where `ViolationDatabase._get_violations_file_path()` was using dash format (`{date}-violations.json`) instead of the correct underscore format (`{date}_violations.json`) to match the events file pattern. This ensures consistent naming convention throughout the system for both `YYYY-MM-DD_events.json` and `YYYY-MM-DD_violations.json` files. Updated all related unit tests to validate the corrected naming convention. Verified end-to-end CLI integration with the refactored LegalViolationTracker to ensure proper file creation in the `violations/[DATE]/` directory structure with accurate data persistence and schema compliance.
+
+### Documentation Updates
+- **README.md**: Added comprehensive "Violation Analysis" section documenting the enhanced `--analyze-violations` command, including detailed workflow explanation, file structure documentation, and example usage with expected output.
+- **CHANGELOG.md**: Updated with summary of filename format bug fix and CLI integration enhancements.
+
 ## 2025-09-15
 
 ### Major Refactoring

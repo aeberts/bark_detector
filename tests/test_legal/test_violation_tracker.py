@@ -1,6 +1,7 @@
 """Tests for bark_detector.legal.tracker"""
 
 import pytest
+import tempfile
 import numpy as np
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
@@ -454,3 +455,117 @@ class TestLegalViolationTracker:
                 # Verify return value (backward compatibility)
                 assert len(result) >= 1
                 assert all(isinstance(r, ViolationReport) for r in result)
+
+    def test_realworld_timestamp_calculation_fix(self):
+        """Test that realworld_time is calculated correctly from filename + offset."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            violations_dir = Path(temp_dir) / 'violations'
+            db = ViolationDatabase(violations_dir=violations_dir)
+            tracker = LegalViolationTracker(violation_db=db)
+
+            # Create test bark events with known start times
+            bark_events = [
+                BarkEvent(start_time=0.0, end_time=1.0, confidence=0.8, intensity=0.5),    # Right at start
+                BarkEvent(start_time=15.5, end_time=16.5, confidence=0.9, intensity=0.6),  # 15.5 seconds in
+                BarkEvent(start_time=125.0, end_time=126.0, confidence=0.7, intensity=0.4)  # 2 min 5 sec in
+            ]
+
+            # Add required attributes
+            for event in bark_events:
+                event.triggering_classes = ["Bark"]
+
+            # Test with specific filename: bark_recording_20250818_081958.wav
+            # This means recording started at 08:19:58
+            audio_file_name = "bark_recording_20250818_081958.wav"
+            target_date = "2025-08-18"
+
+            # Convert to PersistedBarkEvent objects
+            persisted_events = tracker._convert_to_persisted_events(bark_events, audio_file_name, target_date)
+
+            # Verify correct timestamp calculations
+            assert len(persisted_events) == 3
+
+            # Event 1: 08:19:58 + 0 seconds = 08:19:58
+            assert persisted_events[0].realworld_time == "08:19:58"
+            assert persisted_events[0].bark_audiofile_timestamp == "00:00:00.000"
+
+            # Event 2: 08:19:58 + 15.5 seconds = 08:20:13 (rounded to seconds)
+            assert persisted_events[1].realworld_time == "08:20:13"
+            assert persisted_events[1].bark_audiofile_timestamp == "00:00:15.500"
+
+            # Event 3: 08:19:58 + 125 seconds = 08:22:03
+            assert persisted_events[2].realworld_time == "08:22:03"
+            assert persisted_events[2].bark_audiofile_timestamp == "00:02:05.000"
+
+            # Verify all events have correct date and audio file reference
+            for event in persisted_events:
+                assert event.realworld_date == target_date
+                assert event.audio_file_name == audio_file_name
+
+    def test_realworld_timestamp_fallback_for_invalid_filename(self):
+        """Test fallback behavior when filename cannot be parsed."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            violations_dir = Path(temp_dir) / 'violations'
+            db = ViolationDatabase(violations_dir=violations_dir)
+            tracker = LegalViolationTracker(violation_db=db)
+
+            # Create test bark event
+            bark_events = [
+                BarkEvent(start_time=65.0, end_time=66.0, confidence=0.8, intensity=0.5)
+            ]
+            bark_events[0].triggering_classes = ["Bark"]
+
+            # Use invalid filename format
+            audio_file_name = "invalid_filename_format.wav"
+            target_date = "2025-08-18"
+
+            # Convert to PersistedBarkEvent objects
+            with patch('bark_detector.legal.tracker.logger') as mock_logger:
+                persisted_events = tracker._convert_to_persisted_events(bark_events, audio_file_name, target_date)
+
+                # Should log warning and use fallback
+                mock_logger.warning.assert_called_once()
+                warning_call = mock_logger.warning.call_args[0][0]
+                assert "Could not parse timestamp from filename" in warning_call
+                assert audio_file_name in warning_call
+
+                # Should use fallback: convert 65 seconds to HH:MM:SS format
+                assert len(persisted_events) == 1
+                assert persisted_events[0].realworld_time == "00:01:05"  # 65 seconds = 1 min 5 sec
+
+    def test_realworld_timestamp_edge_cases(self):
+        """Test edge cases for timestamp calculation."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            violations_dir = Path(temp_dir) / 'violations'
+            db = ViolationDatabase(violations_dir=violations_dir)
+            tracker = LegalViolationTracker(violation_db=db)
+
+            # Test with midnight recording
+            bark_events = [
+                BarkEvent(start_time=30.0, end_time=31.0, confidence=0.8, intensity=0.5)
+            ]
+            bark_events[0].triggering_classes = ["Bark"]
+
+            # Recording at midnight: 00:00:00
+            audio_file_name = "bark_recording_20250818_000000.wav"
+            target_date = "2025-08-18"
+
+            persisted_events = tracker._convert_to_persisted_events(bark_events, audio_file_name, target_date)
+
+            # 00:00:00 + 30 seconds = 00:00:30
+            assert persisted_events[0].realworld_time == "00:00:30"
+
+            # Test with late evening recording
+            bark_events = [
+                BarkEvent(start_time=3600.0, end_time=3601.0, confidence=0.8, intensity=0.5)  # 1 hour offset
+            ]
+            bark_events[0].triggering_classes = ["Bark"]
+
+            # Recording at 23:00:00
+            audio_file_name = "bark_recording_20250818_230000.wav"
+
+            persisted_events = tracker._convert_to_persisted_events(bark_events, audio_file_name, target_date)
+
+            # 23:00:00 + 3600 seconds (1 hour) = 24:00:00 = 00:00:00 next day
+            # But we only display time, so it shows as 00:00:00
+            assert persisted_events[0].realworld_time == "00:00:00"

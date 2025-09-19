@@ -3,12 +3,13 @@
 import logging
 import uuid
 import librosa
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 from .models import ViolationReport, LegalSporadicSession, PersistedBarkEvent, Violation
 from .database import ViolationDatabase
 from ..core.models import BarkingSession
+from ..utils.time_utils import parse_audio_filename_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,23 @@ class LegalViolationTracker:
             return []
         
         logger.info(f"Found {len(date_recordings)} recording files for {target_date}")
-        
+
+        # Sort recordings chronologically by filename timestamp (FR1 compliance)
+        def get_recording_timestamp(recording_path):
+            """Extract timestamp from recording filename for sorting."""
+            timestamp = parse_audio_filename_timestamp(recording_path.name)
+            if timestamp:
+                return timestamp
+            else:
+                # For files with unparseable timestamps, put them at the end
+                # This ensures they don't interfere with chronological ordering
+                logger.warning(f"Could not parse timestamp from {recording_path.name}, will process last")
+                return datetime.max  # Far future date to sort them last
+
+        # Sort recordings in chronological order to ensure events are in order (FR1)
+        date_recordings.sort(key=get_recording_timestamp)
+        logger.info(f"Processing recordings in chronological order to comply with FR1")
+
         # Analyze each recording using advanced bark detection
         all_sessions = []
         all_bark_events = []  # Collect all PersistedBarkEvent objects
@@ -401,9 +418,17 @@ class LegalViolationTracker:
             elif hasattr(event, 'bark_type'):
                 bark_type = event.bark_type
 
-            # Calculate real-world time from audio file timestamp
-            # For now, use the audio file timestamp as the real-world time
-            realworld_time = self._format_timestamp_to_time(event.start_time)
+            # Calculate real-world time from recording start time + bark offset
+            recording_start_time = parse_audio_filename_timestamp(audio_file_name)
+            if recording_start_time:
+                # Add bark offset (event.start_time) to recording start time
+                bark_offset = timedelta(seconds=event.start_time)
+                actual_bark_time = recording_start_time + bark_offset
+                realworld_time = actual_bark_time.strftime('%H:%M:%S')
+            else:
+                # Fallback: use audio file offset if filename parsing fails
+                logger.warning(f"Could not parse timestamp from filename: {audio_file_name}, using offset time")
+                realworld_time = self._format_timestamp_to_time(event.start_time)
 
             # Calculate timestamp within audio file with millisecond precision
             bark_audiofile_timestamp = self._format_timestamp_with_milliseconds(event.start_time)
