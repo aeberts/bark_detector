@@ -18,6 +18,7 @@ class TestDetectionConfig:
         """Test default configuration values."""
         config = DetectionConfig()
         assert config.sensitivity == 0.68
+        assert config.analysis_sensitivity == 0.30
         assert config.sample_rate == 16000
         assert config.chunk_size == 1024
         assert config.channels == 1
@@ -28,12 +29,20 @@ class TestDetectionConfig:
         """Test custom configuration values."""
         config = DetectionConfig(
             sensitivity=0.5,
+            analysis_sensitivity=0.25,
             sample_rate=22050,
             quiet_duration=60.0
         )
         assert config.sensitivity == 0.5
+        assert config.analysis_sensitivity == 0.25
         assert config.sample_rate == 22050
         assert config.quiet_duration == 60.0
+
+    def test_analysis_sensitivity_independence(self):
+        """Test that sensitivity and analysis_sensitivity can be set independently."""
+        config = DetectionConfig(sensitivity=0.8, analysis_sensitivity=0.2)
+        assert config.sensitivity == 0.8
+        assert config.analysis_sensitivity == 0.2
 
 
 class TestOutputConfig:
@@ -249,6 +258,110 @@ class TestConfigManager:
         ]
         
         assert self.config_manager.DEFAULT_CONFIG_PATHS == expected_paths
+
+    def test_analysis_sensitivity_default_value(self):
+        """Test analysis_sensitivity defaults to 0.30 when not specified."""
+        data = {"detection": {"sensitivity": 0.68}}
+        config = self.config_manager._dict_to_config(data)
+
+        assert config.detection.sensitivity == 0.68
+        assert config.detection.analysis_sensitivity == 0.68  # Backward compatibility fallback
+
+    def test_analysis_sensitivity_custom_value(self):
+        """Test custom analysis_sensitivity values load correctly from config."""
+        data = {
+            "detection": {
+                "sensitivity": 0.68,
+                "analysis_sensitivity": 0.25
+            }
+        }
+        config = self.config_manager._dict_to_config(data)
+
+        assert config.detection.sensitivity == 0.68
+        assert config.detection.analysis_sensitivity == 0.25
+
+    def test_analysis_sensitivity_validation_range(self):
+        """Test analysis_sensitivity validation with boundary testing."""
+        # Valid values
+        valid_data = {"detection": {"analysis_sensitivity": 0.1}}
+        config = self.config_manager._dict_to_config(valid_data)
+        assert config.detection.analysis_sensitivity == 0.1
+
+        valid_data = {"detection": {"analysis_sensitivity": 1.0}}
+        config = self.config_manager._dict_to_config(valid_data)
+        assert config.detection.analysis_sensitivity == 1.0
+
+        # Invalid values
+        with pytest.raises(ValueError, match="analysis_sensitivity.*between"):
+            invalid_data = {"detection": {"analysis_sensitivity": 0.09}}
+            self.config_manager._dict_to_config(invalid_data)
+
+        with pytest.raises(ValueError, match="analysis_sensitivity.*between"):
+            invalid_data = {"detection": {"analysis_sensitivity": 1.01}}
+            self.config_manager._dict_to_config(invalid_data)
+
+    def test_backward_compatibility_analysis_sensitivity_fallback(self):
+        """Test that when analysis_sensitivity not specified, it falls back to sensitivity value."""
+        data = {"detection": {"sensitivity": 0.5}}
+        config = self.config_manager._dict_to_config(data)
+
+        assert config.detection.sensitivity == 0.5
+        assert config.detection.analysis_sensitivity == 0.5  # Should fallback to sensitivity
+
+    def test_config_schema_validation_dual_sensitivity(self):
+        """Test JSON schema validates both sensitivity parameters correctly."""
+        # Both parameters present
+        data = {
+            "detection": {
+                "sensitivity": 0.68,
+                "analysis_sensitivity": 0.30
+            }
+        }
+        config = self.config_manager._dict_to_config(data)
+        assert config.detection.sensitivity == 0.68
+        assert config.detection.analysis_sensitivity == 0.30
+
+    def test_configuration_edge_cases_analysis_sensitivity(self):
+        """Test handling of null, empty, non-numeric analysis_sensitivity values."""
+        # Null value should fallback to sensitivity
+        data = {
+            "detection": {
+                "sensitivity": 0.68,
+                "analysis_sensitivity": None
+            }
+        }
+        config = self.config_manager._dict_to_config(data)
+        assert config.detection.analysis_sensitivity == 0.68
+
+        # Non-numeric value should raise error
+        with pytest.raises(ValueError, match="must be a number"):
+            invalid_data = {
+                "detection": {
+                    "sensitivity": 0.68,
+                    "analysis_sensitivity": "invalid"
+                }
+            }
+            self.config_manager._dict_to_config(invalid_data)
+
+    def test_merge_cli_args_analysis_sensitivity(self):
+        """Test CLI analysis_sensitivity parameter merging."""
+        config = BarkDetectorConfig()
+        config.detection.sensitivity = 0.68
+        config.detection.analysis_sensitivity = 0.30
+
+        # Mock CLI args with analysis_sensitivity
+        class MockArgs:
+            sensitivity = None
+            analysis_sensitivity = 0.20
+            output_dir = None
+            profile = None
+
+        args = MockArgs()
+        merged = self.config_manager.merge_cli_args(config, args)
+
+        # analysis_sensitivity should be overridden by CLI
+        assert merged.detection.sensitivity == 0.68  # Unchanged
+        assert merged.detection.analysis_sensitivity == 0.20  # From CLI
 
 
 class TestConfigIntegration:

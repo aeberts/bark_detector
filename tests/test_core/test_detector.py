@@ -29,6 +29,7 @@ class TestAdvancedBarkDetector:
         
         # Verify initialization
         assert detector.sensitivity == 0.68
+        assert detector.analysis_sensitivity == 0.30  # Default value
         assert detector.sample_rate == 16000
         assert detector.chunk_size == 1024
         assert detector.channels == 1
@@ -303,3 +304,167 @@ class TestAdvancedBarkDetector:
         
         # Test detection after cooldown should be reported
         assert detector._should_report_detection(6.0, event) == True  # 6.0 - 3.0 = 3.0 > 2.5s cooldown
+
+    @patch('bark_detector.core.detector.hub.load')
+    @patch('bark_detector.core.detector.pyaudio.PyAudio')
+    def test_detector_initialization_with_analysis_sensitivity(self, mock_pyaudio, mock_hub_load, yamnet_class_map_file):
+        """Test AdvancedBarkDetector initialization with analysis_sensitivity parameter."""
+        # Mock YAMNet model
+        mock_model = Mock()
+        mock_tensor = Mock()
+        mock_tensor.numpy.return_value = yamnet_class_map_file
+        mock_model.class_map_path.return_value = mock_tensor
+        mock_hub_load.return_value = mock_model
+
+        # Test custom analysis_sensitivity value
+        detector = AdvancedBarkDetector(
+            sensitivity=0.68,
+            analysis_sensitivity=0.25,
+            output_dir='test_recordings'
+        )
+
+        assert detector.sensitivity == 0.68
+        assert detector.analysis_sensitivity == 0.25
+
+    @patch('bark_detector.core.detector.hub.load')
+    @patch('bark_detector.core.detector.pyaudio.PyAudio')
+    def test_detect_barks_with_sensitivity_method(self, mock_pyaudio, mock_hub_load, mock_detector_config, yamnet_class_map_file):
+        """Test _detect_barks_in_buffer_with_sensitivity method accepts custom sensitivity."""
+        # Mock YAMNet model
+        mock_model = Mock()
+        mock_tensor = Mock()
+        mock_tensor.numpy.return_value = yamnet_class_map_file
+        mock_model.class_map_path.return_value = mock_tensor
+
+        # Mock YAMNet inference to return controlled scores
+        mock_scores = np.zeros((3, 11))  # 3 frames, 11 classes
+        mock_scores[0, 5] = 0.40  # Dog class - below real-time threshold (0.68) but above analysis threshold (0.30)
+        mock_scores[1, 6] = 0.50  # Bark class
+        mock_scores[2, 6] = 0.75  # Bark class - above both thresholds
+
+        mock_model.return_value = (mock_scores, None, None)
+        mock_hub_load.return_value = mock_model
+
+        # Create detector
+        detector = AdvancedBarkDetector(**mock_detector_config)
+
+        # Create test audio data
+        audio_chunk = np.random.random(16000).astype(np.float32)  # 1 second of audio
+
+        # Test with real-time sensitivity (0.68) - should detect only frame 2
+        events_realtime = detector._detect_barks_in_buffer_with_sensitivity(audio_chunk, 0.68)
+
+        # Test with analysis sensitivity (0.30) - should detect frames 0, 1, and 2
+        events_analysis = detector._detect_barks_in_buffer_with_sensitivity(audio_chunk, 0.30)
+
+        # Analysis mode should detect more events than real-time mode
+        assert len(events_analysis) >= len(events_realtime)
+
+    @patch('bark_detector.core.detector.hub.load')
+    @patch('bark_detector.core.detector.pyaudio.PyAudio')
+    def test_real_time_detection_uses_primary_sensitivity(self, mock_pyaudio, mock_hub_load, mock_detector_config, yamnet_class_map_file):
+        """Test that real-time detection continues using self.sensitivity."""
+        # Mock YAMNet model
+        mock_model = Mock()
+        mock_tensor = Mock()
+        mock_tensor.numpy.return_value = yamnet_class_map_file
+        mock_model.class_map_path.return_value = mock_tensor
+        mock_hub_load.return_value = mock_model
+
+        # Create detector with different sensitivities
+        detector = AdvancedBarkDetector(**mock_detector_config)
+
+        # Mock the _detect_barks_in_buffer_with_sensitivity method to track calls
+        detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=[])
+
+        # Test audio data
+        audio_chunk = np.random.random(16000).astype(np.float32)
+
+        # Call real-time detection method
+        detector._detect_barks_in_buffer(audio_chunk)
+
+        # Verify it used the real-time sensitivity (0.68)
+        detector._detect_barks_in_buffer_with_sensitivity.assert_called_once_with(audio_chunk, 0.68)
+
+    @patch('bark_detector.core.detector.hub.load')
+    @patch('bark_detector.core.detector.pyaudio.PyAudio')
+    def test_sensitivity_threshold_application(self, mock_pyaudio, mock_hub_load, mock_detector_config, yamnet_class_map_file):
+        """Test that bark_scores > sensitivity logic uses correct threshold."""
+        # Mock YAMNet model
+        mock_model = Mock()
+        mock_tensor = Mock()
+        mock_tensor.numpy.return_value = yamnet_class_map_file
+        mock_model.class_map_path.return_value = mock_tensor
+        mock_hub_load.return_value = mock_model
+
+        # Create detector
+        detector = AdvancedBarkDetector(**mock_detector_config)
+
+        # Create test scores with known values
+        bark_scores = np.array([0.25, 0.45, 0.75, 0.85])  # Range of confidence scores
+
+        # Create mock class details
+        class_details = []
+        for i, score in enumerate(bark_scores):
+            class_details.append({
+                'frame': i,
+                'max_score': score,
+                'class_scores': {'Bark': score},
+                'triggering_classes': ['Bark']
+            })
+
+        # Test with high sensitivity (0.80) - should detect only frame 3
+        events_high = detector._scores_to_events_with_sensitivity(bark_scores, class_details, 0.80)
+        assert len(events_high) == 1
+
+        # Test with medium sensitivity (0.50) - should detect frames 2 and 3
+        events_medium = detector._scores_to_events_with_sensitivity(bark_scores, class_details, 0.50)
+        assert len(events_medium) == 1  # Frames 2-3 will be grouped as one consecutive event
+
+        # Test with low sensitivity (0.20) - should detect all frames
+        events_low = detector._scores_to_events_with_sensitivity(bark_scores, class_details, 0.20)
+        assert len(events_low) >= 1  # All frames should be detected
+
+    @patch('bark_detector.core.detector.hub.load')
+    @patch('bark_detector.core.detector.pyaudio.PyAudio')
+    def test_detection_mode_differentiation(self, mock_pyaudio, mock_hub_load, mock_detector_config, yamnet_class_map_file):
+        """Test that different sensitivity values are handled correctly."""
+        # Mock YAMNet model
+        mock_model = Mock()
+        mock_tensor = Mock()
+        mock_tensor.numpy.return_value = yamnet_class_map_file
+        mock_model.class_map_path.return_value = mock_tensor
+        mock_hub_load.return_value = mock_model
+
+        # Create detector
+        detector = AdvancedBarkDetector(**mock_detector_config)
+
+        # Verify dual sensitivity values are set correctly
+        assert detector.sensitivity == 0.68
+        assert detector.analysis_sensitivity == 0.30
+
+        # Mock the YAMNet model call to return controlled data
+        mock_scores = np.zeros((3, 11))  # 3 frames, 11 classes
+        mock_scores[0, 5] = 0.40  # Below real-time threshold, above analysis threshold
+        mock_scores[1, 6] = 0.75  # Above both thresholds
+
+        mock_model.return_value = (mock_scores, None, None)
+
+        # Test audio chunk
+        audio_chunk = np.random.random(16000).astype(np.float32)
+
+        # Test real-time mode detection (higher threshold)
+        events_realtime = detector._detect_barks_in_buffer_with_sensitivity(audio_chunk, detector.sensitivity)
+
+        # Test analysis mode detection (lower threshold)
+        events_analysis = detector._detect_barks_in_buffer_with_sensitivity(audio_chunk, detector.analysis_sensitivity)
+
+        # Analysis mode should detect at least as many events as real-time mode
+        assert len(events_analysis) >= len(events_realtime)
+
+        # Verify the methods work with different sensitivity values
+        low_sensitivity_events = detector._detect_barks_in_buffer_with_sensitivity(audio_chunk, 0.20)
+        high_sensitivity_events = detector._detect_barks_in_buffer_with_sensitivity(audio_chunk, 0.80)
+
+        # Lower sensitivity should detect more events
+        assert len(low_sensitivity_events) >= len(high_sensitivity_events)

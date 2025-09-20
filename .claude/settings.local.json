@@ -8,7 +8,8 @@
       "Bash(uv run:*)",
       "Bash(mkdir:*)",
       "Bash(chmod:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

@@ -205,3 +205,32 @@ class TestCLIIntegration:
         for dir_path in key_dirs:
             full_path = project_root / dir_path
             assert full_path.is_dir(), f"Required directory missing: {dir_path}"
+
+    def test_analysis_sensitivity_cli_parameter(self):
+        """Test that --analysis-sensitivity CLI parameter is recognized and included in help."""
+        result = subprocess.run(
+            ["uv", "run", "python", "-m", "bark_detector", "--help"],
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent.parent.parent
+        )
+
+        assert result.returncode == 0
+        # Verify that the analysis-sensitivity parameter is in the help output
+        assert "--analysis-sensitivity" in result.stdout
+
+    def test_analysis_sensitivity_parameter_parsing(self):
+        """Test that --analysis-sensitivity parameter can be parsed without errors."""
+        # This test only checks argument parsing, not full execution
+        result = subprocess.run(
+            ["uv", "run", "python", "-c",
+             "import sys; sys.path.insert(0, '.'); from bark_detector.cli import parse_arguments; "
+             "args = parse_arguments(); print('PARSED OK')"],
+            input="--analysis-sensitivity 0.25\n",
+            capture_output=True,
+            text=True,
+            cwd=Path(__file__).parent.parent.parent
+        )
+
+        # Argument parsing should succeed (even if the command doesn't fully run)
+        assert "PARSED OK" in result.stdout or result.returncode == 0

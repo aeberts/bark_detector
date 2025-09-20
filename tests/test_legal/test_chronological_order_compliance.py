@@ -55,7 +55,9 @@ class TestChronologicalOrderCompliance:
 
             mock_detector = Mock()
             mock_detector.sample_rate = 16000
-            mock_detector._detect_barks_in_buffer = mock_detect_barks
+            mock_detector.session_gap_threshold = 10.0
+            mock_detector.analysis_sensitivity = 0.30
+            mock_detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=[BarkEvent(start_time=0.0, end_time=1.0, confidence=0.8, intensity=0.5)])
 
             # Mock librosa.load to track which files are being loaded in what order
             def mock_librosa_load(file_path, sr=None):
@@ -66,7 +68,7 @@ class TestChronologicalOrderCompliance:
 
             with patch('librosa.load', side_effect=mock_librosa_load):
                 # Mock the bark detection to avoid real ML processing
-                with patch.object(mock_detector, '_detect_barks_in_buffer') as mock_detection:
+                with patch.object(mock_detector, '_detect_barks_in_buffer_with_sensitivity') as mock_detection:
                     mock_event = BarkEvent(start_time=0.0, end_time=1.0, confidence=0.8, intensity=0.5)
                     mock_event.triggering_classes = ["Bark"]
                     mock_detection.return_value = [mock_event]
@@ -128,7 +130,7 @@ class TestChronologicalOrderCompliance:
                 current_file_offsets[filename] = offset
                 return np.random.random(16000), sr
 
-            def mock_detect_barks(audio_data):
+            def mock_detect_barks_with_sensitivity(audio_data, sensitivity):
                 # Use the most recently loaded file's offset
                 if current_file_offsets:
                     filename = list(current_file_offsets.keys())[-1]  # Most recent file
@@ -141,7 +143,7 @@ class TestChronologicalOrderCompliance:
                 return [event]
 
             with patch('librosa.load', side_effect=mock_librosa_load_with_tracking):
-                with patch.object(mock_detector, '_detect_barks_in_buffer', side_effect=mock_detect_barks):
+                with patch.object(mock_detector, '_detect_barks_in_buffer_with_sensitivity', side_effect=mock_detect_barks_with_sensitivity):
                     # Run analysis
                     tracker.analyze_recordings_for_date(recordings_dir, "2025-08-18", mock_detector)
 

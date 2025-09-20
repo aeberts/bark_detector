@@ -5,7 +5,9 @@
   "detection": {
     "_comment": "Core detection parameters",
     "sensitivity": 0.68,
-    "_sensitivity_help": "Detection sensitivity (0.01-1.0). Higher = more sensitive",
+    "_sensitivity_help": "Real-time detection sensitivity (0.01-1.0). Higher = more sensitive",
+    "analysis_sensitivity": 0.30,
+    "_analysis_sensitivity_help": "Analysis mode sensitivity (0.1-1.0) for comprehensive bark detection in post-analysis. Lower = captures more bark events for legal evidence",
     "sample_rate": 16000,
     "_sample_rate_help": "Audio sample rate in Hz (must be 16000 for YAMNet)",
     "chunk_size": 1024,

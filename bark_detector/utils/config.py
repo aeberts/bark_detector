@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class DetectionConfig:
     """Detection-related configuration."""
     sensitivity: float = 0.68
+    analysis_sensitivity: float = 0.30
     sample_rate: int = 16000
     chunk_size: int = 1024
     channels: int = 1
@@ -135,8 +136,17 @@ class ConfigManager:
         # Detection config
         if 'detection' in data:
             detection_data = data['detection']
+            sensitivity = self._validate_float(detection_data.get('sensitivity', 0.68), 0.01, 1.0, 'sensitivity')
+            # Backward compatibility: if analysis_sensitivity not specified or None, use sensitivity value
+            analysis_sensitivity = detection_data.get('analysis_sensitivity', sensitivity)
+            if analysis_sensitivity is None:
+                analysis_sensitivity = sensitivity
+            else:
+                analysis_sensitivity = self._validate_float(analysis_sensitivity, 0.1, 1.0, 'analysis_sensitivity')
+
             config.detection = DetectionConfig(
-                sensitivity=self._validate_float(detection_data.get('sensitivity', 0.68), 0.01, 1.0, 'sensitivity'),
+                sensitivity=sensitivity,
+                analysis_sensitivity=analysis_sensitivity,
                 sample_rate=detection_data.get('sample_rate', 16000),
                 chunk_size=detection_data.get('chunk_size', 1024),
                 channels=detection_data.get('channels', 1),
@@ -230,6 +240,8 @@ class ConfigManager:
         # Override with CLI arguments if provided
         if hasattr(args, 'sensitivity') and args.sensitivity is not None:
             merged_config.detection.sensitivity = args.sensitivity
+        if hasattr(args, 'analysis_sensitivity') and args.analysis_sensitivity is not None:
+            merged_config.detection.analysis_sensitivity = args.analysis_sensitivity
         if hasattr(args, 'output_dir') and args.output_dir is not None:
             merged_config.output.recordings_dir = args.output_dir
         if hasattr(args, 'profile') and args.profile is not None:

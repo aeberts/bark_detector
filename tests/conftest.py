@@ -131,6 +131,7 @@ def mock_detector_config():
     """Standard configuration for AdvancedBarkDetector testing."""
     return {
         'sensitivity': 0.68,
+        'analysis_sensitivity': 0.30,
         'sample_rate': 16000,
         'chunk_size': 1024,
         'channels': 1,

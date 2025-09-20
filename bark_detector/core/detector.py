@@ -33,8 +33,9 @@ logger = logging.getLogger(__name__)
 class AdvancedBarkDetector:
     """Advanced bark detector using YAMNet with comprehensive analysis."""
     
-    def __init__(self, 
+    def __init__(self,
                  sensitivity: float = 0.68,
+                 analysis_sensitivity: float = 0.30,
                  sample_rate: int = 16000,
                  chunk_size: int = 1024,
                  channels: int = 1,
@@ -44,6 +45,7 @@ class AdvancedBarkDetector:
                  profile_name: str = None):
         """Initialize the advanced bark detector."""
         self.sensitivity = sensitivity
+        self.analysis_sensitivity = analysis_sensitivity
         self.sample_rate = sample_rate
         self.chunk_size = chunk_size
         self.channels = channels
@@ -100,6 +102,7 @@ class AdvancedBarkDetector:
         
         logger.info(f"Advanced Bark Detector initialized:")
         logger.info(f"  Sensitivity: {sensitivity}")
+        logger.info(f"  Analysis Sensitivity: {analysis_sensitivity}")
         logger.info(f"  Sample Rate: {sample_rate} Hz")
         logger.info(f"  Session Gap Threshold: {session_gap_threshold}s")
         logger.info(f"  Quiet Duration: {quiet_duration}s")
@@ -368,29 +371,45 @@ class AdvancedBarkDetector:
         self.stop()
     
     def _detect_barks_in_buffer(self, audio_chunk: np.ndarray) -> List[BarkEvent]:
-        """Detect barks in audio buffer using YAMNet."""
+        """Detect barks in audio buffer using YAMNet with real-time sensitivity."""
+        return self._detect_barks_in_buffer_with_sensitivity(audio_chunk, self.sensitivity)
+
+    def _detect_barks_in_buffer_with_sensitivity(self, audio_chunk: np.ndarray, sensitivity: float) -> List[BarkEvent]:
+        """Detect barks in audio buffer using YAMNet with custom sensitivity.
+
+        Args:
+            audio_chunk: Audio data to analyze
+            sensitivity: Custom sensitivity threshold for detection
+
+        Returns:
+            List of detected bark events
+        """
         try:
             # Normalize audio to [-1, 1] range
             waveform = audio_chunk.astype(np.float32)
             if np.max(np.abs(waveform)) > 0:
                 waveform = waveform / np.max(np.abs(waveform))
-            
+
             # Ensure minimum length for YAMNet
             min_samples = int(0.975 * self.sample_rate)
             if len(waveform) < min_samples:
                 waveform = np.pad(waveform, (0, min_samples - len(waveform)))
-            
+
             # Run YAMNet inference
             scores, embeddings, spectrogram = self.yamnet_model(waveform)
-            
+
             # Get bark-related scores with detailed class information
             bark_scores, class_details = self._get_bark_scores(scores.numpy())
-            
-            # Convert scores to events with class analysis
-            bark_events = self._scores_to_events(bark_scores, class_details)
-            
+
+            # Convert scores to events with class analysis using custom sensitivity
+            bark_events = self._scores_to_events_with_sensitivity(bark_scores, class_details, sensitivity)
+
+            # Log which mode was used for analysis
+            mode = "real-time" if sensitivity == self.sensitivity else "analysis"
+            logger.debug(f"Detection mode: {mode} (sensitivity: {sensitivity:.3f})")
+
             return bark_events
-            
+
         except Exception as e:
             logger.error(f"Error in bark detection: {e}")
             return []
@@ -437,12 +456,25 @@ class AdvancedBarkDetector:
         return bark_scores, class_details
     
     def _scores_to_events(self, bark_scores: np.ndarray, class_details: List[dict]) -> List[BarkEvent]:
-        """Convert YAMNet scores to bark events with class analysis."""
+        """Convert YAMNet scores to bark events with class analysis using real-time sensitivity."""
+        return self._scores_to_events_with_sensitivity(bark_scores, class_details, self.sensitivity)
+
+    def _scores_to_events_with_sensitivity(self, bark_scores: np.ndarray, class_details: List[dict], sensitivity: float) -> List[BarkEvent]:
+        """Convert YAMNet scores to bark events with class analysis using custom sensitivity.
+
+        Args:
+            bark_scores: Array of bark confidence scores
+            class_details: Detailed class information per frame
+            sensitivity: Custom sensitivity threshold for detection
+
+        Returns:
+            List of detected bark events
+        """
         # YAMNet produces one prediction every 0.48 seconds
         time_per_frame = 0.48
-        
-        # Find frames above threshold
-        bark_frames = np.where(bark_scores > self.sensitivity)[0]
+
+        # Find frames above threshold using custom sensitivity
+        bark_frames = np.where(bark_scores > sensitivity)[0]
         
         if len(bark_frames) == 0:
             return []
@@ -687,15 +719,19 @@ class AdvancedBarkDetector:
     
     def analyze_violations_for_date(self, target_date: str) -> List:
         """
-        Analyze recordings for a specific date and detect bylaw violations.
-        
+        Analyze recordings for a specific date and detect bylaw violations using analysis sensitivity.
+
         Args:
             target_date: Date string in YYYY-MM-DD format
-            
+
         Returns:
             List of detected violations for that date
         """
         recordings_dir = Path(self.output_dir)
+
+        # Log which sensitivity mode is being used for analysis
+        logger.info(f"Using analysis sensitivity {self.analysis_sensitivity:.3f} for comprehensive violation detection")
+
         return self.violation_tracker.analyze_recordings_for_date(recordings_dir, target_date, self)
     
     def generate_violation_report(self, start_date: str, end_date: str) -> List:

@@ -69,12 +69,13 @@ class TestLegalViolationTracker:
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
-        
-        # Mock the _detect_barks_in_buffer method to return bark events for a 6-minute file
+        mock_detector.analysis_sensitivity = 0.30
+
+        # Mock the _detect_barks_in_buffer_with_sensitivity method to return bark events for a 6-minute file
         mock_bark_events = [
             BarkEvent(start_time=10.0, end_time=370.0, confidence=0.8)  # 6+ minute bark event
         ]
-        mock_detector._detect_barks_in_buffer.return_value = mock_bark_events
+        mock_detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=mock_bark_events)
         
         # Create test recording files
         date_folder = temp_dir / "2025-08-14"
@@ -101,12 +102,13 @@ class TestLegalViolationTracker:
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
-        
-        # Mock the _detect_barks_in_buffer method to return short bark events (no violations)
+        mock_detector.analysis_sensitivity = 0.30
+
+        # Mock the _detect_barks_in_buffer_with_sensitivity method to return short bark events (no violations)
         mock_bark_events = [
             BarkEvent(start_time=10.0, end_time=50.0, confidence=0.7)  # Short bark event (40 seconds)
         ]
-        mock_detector._detect_barks_in_buffer.return_value = mock_bark_events
+        mock_detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=mock_bark_events)
         
         # Create test recording files
         date_folder = temp_dir / "2025-08-14"
@@ -139,12 +141,13 @@ class TestLegalViolationTracker:
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
-        
-        # Mock the _detect_barks_in_buffer method to return bark events for a 6-minute file
+        mock_detector.analysis_sensitivity = 0.30
+
+        # Mock the _detect_barks_in_buffer_with_sensitivity method to return bark events for a 6-minute file
         mock_bark_events = [
             BarkEvent(start_time=10.0, end_time=370.0, confidence=0.8)  # 6+ minute bark event
         ]
-        mock_detector._detect_barks_in_buffer.return_value = mock_bark_events
+        mock_detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=mock_bark_events)
         
         # Create test recording file in flat structure
         test_file = temp_dir / "bark_recording_20250814_120000.wav"
@@ -394,6 +397,7 @@ class TestLegalViolationTracker:
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
+        mock_detector.analysis_sensitivity = 0.30
 
         # Mock audio data and bark events
         mock_librosa.load.return_value = (np.array([0.1, 0.2, 0.3] * 1000), 16000)
@@ -405,7 +409,7 @@ class TestLegalViolationTracker:
         bark_events[0].triggering_classes = ["Bark"]
         bark_events[1].triggering_classes = ["Yip"]
 
-        mock_detector._detect_barks_in_buffer.return_value = bark_events
+        mock_detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=bark_events)
 
         # Create test directory structure
         recordings_dir = Path("/fake/recordings")
@@ -569,3 +573,88 @@ class TestLegalViolationTracker:
             # 23:00:00 + 3600 seconds (1 hour) = 24:00:00 = 00:00:00 next day
             # But we only display time, so it shows as 00:00:00
             assert persisted_events[0].realworld_time == "00:00:00"
+
+    @patch('librosa.load')
+    def test_analyze_recordings_uses_analysis_sensitivity(self, mock_librosa_load, temp_dir):
+        """Test that analyze_recordings_for_date uses analysis_sensitivity instead of real-time sensitivity."""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create mock detector with different sensitivities
+        mock_detector = Mock()
+        mock_detector.sample_rate = 16000
+        mock_detector.session_gap_threshold = 10.0
+        mock_detector.sensitivity = 0.68  # Real-time sensitivity
+        mock_detector.analysis_sensitivity = 0.30  # Analysis sensitivity
+
+        # Mock analysis method specifically
+        mock_detector._detect_barks_in_buffer_with_sensitivity = Mock()
+        mock_detector._detect_barks_in_buffer_with_sensitivity.return_value = [
+            BarkEvent(start_time=10.0, end_time=370.0, confidence=0.8)  # 6+ minute bark event
+        ]
+
+        # Create test recording files
+        date_folder = temp_dir / "2025-08-14"
+        date_folder.mkdir()
+        test_file = date_folder / "bark_recording_20250814_120000.wav"
+        test_file.touch()
+
+        # Mock audio loading
+        mock_librosa_load.return_value = (np.random.rand(5760000), 16000)  # 6 minutes at 16kHz
+
+        # Run analysis
+        violations = tracker.analyze_recordings_for_date(temp_dir, "2025-08-14", mock_detector)
+
+        # Verify analysis_sensitivity was used (not real-time sensitivity)
+        mock_detector._detect_barks_in_buffer_with_sensitivity.assert_called()
+        call_args = mock_detector._detect_barks_in_buffer_with_sensitivity.call_args
+
+        # Second argument should be analysis_sensitivity (0.30), not real-time sensitivity (0.68)
+        assert call_args[0][1] == 0.30, f"Expected analysis_sensitivity 0.30, got {call_args[0][1]}"
+
+        # Verify we got violations
+        assert len(violations) == 1
+
+    @patch('librosa.load')
+    def test_dual_sensitivity_advantage_more_detections(self, mock_librosa_load, temp_dir):
+        """Test that analysis_sensitivity detects more bark events than real-time sensitivity would."""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create mock detector
+        mock_detector = Mock()
+        mock_detector.sample_rate = 16000
+        mock_detector.session_gap_threshold = 10.0
+        mock_detector.sensitivity = 0.68
+        mock_detector.analysis_sensitivity = 0.30
+
+        # Simulate different detection results based on sensitivity
+        def mock_detect_with_sensitivity(audio_data, sensitivity):
+            if sensitivity == 0.68:
+                # Real-time sensitivity detects fewer events
+                return [BarkEvent(start_time=10.0, end_time=20.0, confidence=0.75)]
+            elif sensitivity == 0.30:
+                # Analysis sensitivity detects more events
+                return [
+                    BarkEvent(start_time=10.0, end_time=20.0, confidence=0.75),
+                    BarkEvent(start_time=30.0, end_time=40.0, confidence=0.45),  # Lower confidence but still above 0.30
+                    BarkEvent(start_time=50.0, end_time=360.0, confidence=0.55)  # Long event for violation
+                ]
+
+        mock_detector._detect_barks_in_buffer_with_sensitivity.side_effect = mock_detect_with_sensitivity
+
+        # Create test recording
+        date_folder = temp_dir / "2025-08-14"
+        date_folder.mkdir()
+        test_file = date_folder / "bark_recording_20250814_120000.wav"
+        test_file.touch()
+
+        mock_librosa_load.return_value = (np.random.rand(5760000), 16000)
+
+        # Run analysis
+        violations = tracker.analyze_recordings_for_date(temp_dir, "2025-08-14", mock_detector)
+
+        # Verify analysis_sensitivity was used and detected more events (leading to violations)
+        mock_detector._detect_barks_in_buffer_with_sensitivity.assert_called_with(mock_librosa_load.return_value[0], 0.30)
+
+        # Should detect violation from longer analysis
+        assert len(violations) == 1
+        assert violations[0].violation_type == "Constant"

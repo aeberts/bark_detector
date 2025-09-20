@@ -25,7 +25,8 @@ def parse_arguments():
 Examples:
   python -m bark_detector                          # Start monitoring with default settings
   python -m bark_detector --config myconfig.json  # Use configuration file
-  python -m bark_detector --sensitivity 0.5       # Lower sensitivity
+  python -m bark_detector --sensitivity 0.5       # Lower real-time sensitivity
+  python -m bark_detector --analysis-sensitivity 0.25  # Lower analysis sensitivity for more detections
   python -m bark_detector --profile myprofile     # Use saved profile
   python -m bark_detector --calibrate samples/    # Calibrate from files
   python -m bark_detector --create-config config.json  # Create default config file
@@ -40,7 +41,9 @@ Examples:
     
     # Core detection parameters
     parser.add_argument('--sensitivity', type=float,
-                        help='Detection sensitivity (0.01-1.0, default: 0.68)')
+                        help='Real-time detection sensitivity (0.01-1.0, default: 0.68)')
+    parser.add_argument('--analysis-sensitivity', type=float,
+                        help='Analysis mode sensitivity for comprehensive bark detection (0.1-1.0, default: 0.30)')
     parser.add_argument('--output-dir', type=str,
                         help='Output directory for recordings (default: recordings)')
     
@@ -140,6 +143,7 @@ def main():
     # Convert config to detector parameters
     detector_config = {
         'sensitivity': config.detection.sensitivity,
+        'analysis_sensitivity': config.detection.analysis_sensitivity,
         'sample_rate': config.detection.sample_rate,
         'chunk_size': config.detection.chunk_size,
         'channels': config.detection.channels,

@@ -117,8 +117,8 @@ class LegalViolationTracker:
                 
                 total_analyzed_duration += len(audio_data) / sr
                 
-                # Use detector's advanced bark detection
-                bark_events = detector._detect_barks_in_buffer(audio_data)
+                # Use detector's analysis sensitivity for comprehensive violation detection
+                bark_events = detector._detect_barks_in_buffer_with_sensitivity(audio_data, detector.analysis_sensitivity)
 
                 if not bark_events:
                     logger.debug(f"No bark events detected in {recording_file.name}")
