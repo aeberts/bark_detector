@@ -91,12 +91,13 @@ class TestFilenameFormatConsistency:
 
             test_violations = [
                 Violation(
-                    violation_id='violation_001',
-                    violation_type='Intermittent',
-                    violation_date=test_date,
-                    violation_start_time='14:30:00',
-                    violation_end_time='14:35:00',
-                    bark_event_ids=['test_001']
+                    type='Sporadic',
+                    startTimestamp=f"{test_date}T14:30:00.000Z",
+                    violationTriggerTimestamp=f"{test_date}T14:35:00.000Z",
+                    endTimestamp=f"{test_date}T14:35:00.000Z",
+                    durationMinutes=5.0,
+                    violationDurationMinutes=0.0,
+                    barkEventIds=['test_001']
                 )
             ]
 

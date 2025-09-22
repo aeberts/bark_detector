@@ -6,7 +6,7 @@ import librosa
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
-from .models import ViolationReport, LegalSporadicSession, PersistedBarkEvent, Violation
+from .models import ViolationReport, LegalSporadicSession, PersistedBarkEvent, Violation, AlgorithmInputEvent
 from .database import ViolationDatabase
 from ..core.models import BarkingSession
 from ..utils.time_utils import parse_audio_filename_timestamp
@@ -35,7 +35,37 @@ class LegalViolationTracker:
             self.violation_db = ViolationDatabase(violations_dir=violations_dir)
         
         self.interactive = interactive
-    
+
+    def _convert_to_algorithm_input_events(self, events: List[PersistedBarkEvent]) -> List[AlgorithmInputEvent]:
+        """Convert PersistedBarkEvent objects to AlgorithmInputEvent format for violation processing.
+
+        Args:
+            events: List of PersistedBarkEvent objects
+
+        Returns:
+            List of AlgorithmInputEvent objects with ISO 8601 timestamps
+        """
+        algorithm_events = []
+
+        for event in events:
+            try:
+                # Validate timestamp format
+                datetime.fromisoformat(f"{event.realworld_date}T{event.realworld_time}")
+
+                # Convert to algorithm input format
+                algorithm_event = AlgorithmInputEvent.from_persisted_bark_event(event)
+                algorithm_events.append(algorithm_event)
+
+            except (ValueError, AttributeError) as e:
+                print(f"DEBUG: Skipping event {event.bark_id} due to invalid timestamp format: {e}")
+                logger.warning(f"Skipping event {event.bark_id} due to invalid timestamp format: {e}")
+                continue
+
+        # Sort by start timestamp for algorithm processing
+        algorithm_events.sort(key=lambda e: e.startTimestamp)
+
+        return algorithm_events
+
     def analyze_violations(self, sessions: List[BarkingSession]) -> List[ViolationReport]:
         """Analyze barking sessions for legal violations."""
         violations = []
@@ -91,121 +121,137 @@ class LegalViolationTracker:
 
         return groups
 
-    def _analyze_continuous_violations_from_events(self, events: List, gap_threshold: float = 60.0) -> List[ViolationReport]:
-        """Analyze bark events directly for continuous (constant) violations.
+    def _analyze_continuous_violations_from_events(self, events: List[AlgorithmInputEvent], gap_threshold: float = 10.0) -> List[Violation]:
+        """Find continuous violations using start timestamp intervals per formal algorithm.
 
         Args:
-            events: List of bark events with start_time, end_time, confidence attributes
-            gap_threshold: Maximum gap in seconds to consider events as continuous (default: 60s)
+            events: List of AlgorithmInputEvent objects sorted by startTimestamp
+            gap_threshold: Maximum gap in seconds between consecutive bark events (default: 10s)
 
         Returns:
-            List of ViolationReport objects for detected continuous violations
+            List of Violation objects for detected continuous violations
         """
         violations = []
+        MIN_SESSION_MINUTES = 5  # 5 minutes minimum for continuous violation
 
-        # Group events by gap threshold
-        event_groups = self._group_events_by_gaps(events, gap_threshold)
+        if len(events) < 2:
+            return violations
 
-        for group in event_groups:
-            if not group:
+        # Track sessions and their violations to prevent duplicates
+        session_start_index = 0
+        current_session_violation = None  # Track if current session already has a violation
+
+        for i in range(1, len(events)):
+            previous_event = events[i-1]
+            current_event = events[i]
+
+            # Calculate gap between consecutive bark start timestamps
+            previous_time = datetime.fromisoformat(previous_event.startTimestamp.replace('Z', '+00:00'))
+            current_time = datetime.fromisoformat(current_event.startTimestamp.replace('Z', '+00:00'))
+            gap_seconds = (current_time - previous_time).total_seconds()
+            if i <= 5:  # Only print first few for debugging
+                print(f"DEBUG: Event {i}: gap={gap_seconds:.1f}s (prev={previous_event.startTimestamp}, curr={current_event.startTimestamp})")
+
+            if gap_seconds >= gap_threshold:
+                # Gap too large, session is broken - reset start and clear violation tracking
+                session_start_index = i
+                current_session_violation = None
                 continue
 
-            # Calculate total bark duration within this group
-            total_bark_duration = sum(event.end_time - event.start_time for event in group)
+            # Session continues - check if duration meets violation criteria
+            first_event = events[session_start_index]
+            first_time = datetime.fromisoformat(first_event.startTimestamp.replace('Z', '+00:00'))
+            session_duration_seconds = (current_time - first_time).total_seconds()
+            session_duration_minutes = session_duration_seconds / 60
 
-            # Check if this group meets continuous violation criteria (5+ minutes)
-            if total_bark_duration >= 300:  # 5 minutes in seconds
-                # Create violation report for this continuous violation
-                start_time = group[0].start_time
-                end_time = group[-1].end_time
+            if session_duration_minutes >= MIN_SESSION_MINUTES:
+                # Session duration meets violation criteria
+                event_ids = [events[j].id for j in range(session_start_index, i + 1)]
 
-                # Calculate statistics
-                confidences = [event.confidence for event in group]
-                avg_confidence = sum(confidences) / len(confidences)
-                peak_confidence = max(confidences)
-
-                # Convert absolute timestamps back to relative for display
-                # For now, use simplified relative timestamps for display
-                # TODO: Improve to show actual time of day
-                duration = end_time - start_time
-                start_time_str = "00:00:00"  # Simplified for now
-                end_time_str = str(timedelta(seconds=int(duration)))
-
-                violation = ViolationReport(
-                    date=datetime.now().strftime('%Y-%m-%d'),  # Will be updated by caller
-                    start_time=start_time_str,
-                    end_time=end_time_str,
-                    violation_type="Constant",
-                    total_bark_duration=total_bark_duration,
-                    total_incident_duration=end_time - start_time,
-                    audio_files=[],  # Will be populated by caller
-                    audio_file_start_times=[start_time_str],
-                    audio_file_end_times=[end_time_str],
-                    confidence_scores=confidences,
-                    peak_confidence=peak_confidence,
-                    avg_confidence=avg_confidence,
-                    created_timestamp=datetime.now().isoformat()
-                )
-                violations.append(violation)
+                if current_session_violation is None:
+                    # This is the first time this session becomes a violation - create new violation
+                    violation = Violation(
+                        type="Continuous",
+                        startTimestamp=first_event.startTimestamp,
+                        violationTriggerTimestamp=current_event.startTimestamp,
+                        endTimestamp=current_event.startTimestamp,
+                        durationMinutes=session_duration_minutes,
+                        violationDurationMinutes=0.0,
+                        barkEventIds=event_ids
+                    )
+                    violations.append(violation)
+                    current_session_violation = violation
+                else:
+                    # Update existing violation for this session as it continues
+                    current_session_violation.endTimestamp = current_event.startTimestamp
+                    current_session_violation.durationMinutes = session_duration_minutes
+                    current_session_violation.barkEventIds = event_ids
 
         return violations
 
-    def _analyze_sporadic_violations_from_events(self, events: List, sporadic_gap_threshold: float = 300.0) -> List[ViolationReport]:
-        """Analyze bark events directly for sporadic (intermittent) violations.
+    def _analyze_sporadic_violations_from_events(self, events: List[AlgorithmInputEvent], sporadic_gap_threshold: float = 300.0) -> List[Violation]:
+        """Find sporadic violations using start timestamp intervals per formal algorithm.
 
         Args:
-            events: List of bark events with start_time, end_time, confidence attributes
-            sporadic_gap_threshold: Maximum gap in seconds for sporadic grouping (default: 5 minutes)
+            events: List of AlgorithmInputEvent objects sorted by startTimestamp
+            sporadic_gap_threshold: Maximum gap in seconds between consecutive bark events (default: 300s = 5 minutes)
 
         Returns:
-            List of ViolationReport objects for detected sporadic violations
+            List of Violation objects for detected sporadic violations
         """
         violations = []
+        MIN_SESSION_MINUTES = 15  # 15 minutes minimum for sporadic violation
 
-        # Group events by sporadic gap threshold (5 minutes)
-        sporadic_groups = self._group_events_by_gaps(events, sporadic_gap_threshold)
+        if len(events) < 2:
+            return violations
 
-        for group in sporadic_groups:
-            if not group:
+        # Track sessions and their violations to prevent duplicates
+        session_start_index = 0
+        current_session_violation = None  # Track if current session already has a violation
+
+        for i in range(1, len(events)):
+            previous_event = events[i-1]
+            current_event = events[i]
+
+            # Calculate gap between consecutive bark start timestamps
+            previous_time = datetime.fromisoformat(previous_event.startTimestamp.replace('Z', '+00:00'))
+            current_time = datetime.fromisoformat(current_event.startTimestamp.replace('Z', '+00:00'))
+            gap_seconds = (current_time - previous_time).total_seconds()
+
+            if gap_seconds >= sporadic_gap_threshold:  # sporadic_gap_threshold is in seconds
+                # Gap too large, session is broken - reset start and clear violation tracking
+                session_start_index = i
+                current_session_violation = None
                 continue
 
-            # Calculate total bark duration within this sporadic group
-            total_bark_duration = sum(event.end_time - event.start_time for event in group)
+            # Session continues - check if duration meets violation criteria
+            first_event = events[session_start_index]
+            first_time = datetime.fromisoformat(first_event.startTimestamp.replace('Z', '+00:00'))
+            session_duration_seconds = (current_time - first_time).total_seconds()
+            session_duration_minutes = session_duration_seconds / 60
 
-            # Check if this group meets sporadic violation criteria (15+ minutes total)
-            if total_bark_duration >= 900:  # 15 minutes in seconds
-                # Create violation report for this sporadic violation
-                start_time = group[0].start_time
-                end_time = group[-1].end_time
+            if session_duration_minutes >= MIN_SESSION_MINUTES:
+                # Session duration meets violation criteria
+                event_ids = [events[j].id for j in range(session_start_index, i + 1)]
 
-                # Calculate statistics
-                confidences = [event.confidence for event in group]
-                avg_confidence = sum(confidences) / len(confidences)
-                peak_confidence = max(confidences)
-
-                # Convert absolute timestamps back to relative for display
-                # For now, use simplified relative timestamps for display
-                # TODO: Improve to show actual time of day
-                duration = end_time - start_time
-                start_time_str = "00:00:00"  # Simplified for now
-                end_time_str = str(timedelta(seconds=int(duration)))
-
-                violation = ViolationReport(
-                    date=datetime.now().strftime('%Y-%m-%d'),  # Will be updated by caller
-                    start_time=start_time_str,
-                    end_time=end_time_str,
-                    violation_type="Intermittent",
-                    total_bark_duration=total_bark_duration,
-                    total_incident_duration=end_time - start_time,
-                    audio_files=[],  # Will be populated by caller
-                    audio_file_start_times=[start_time_str],
-                    audio_file_end_times=[end_time_str],
-                    confidence_scores=confidences,
-                    peak_confidence=peak_confidence,
-                    avg_confidence=avg_confidence,
-                    created_timestamp=datetime.now().isoformat()
-                )
-                violations.append(violation)
+                if current_session_violation is None:
+                    # This is the first time this session becomes a violation - create new violation
+                    violation = Violation(
+                        type="Sporadic",
+                        startTimestamp=first_event.startTimestamp,
+                        violationTriggerTimestamp=current_event.startTimestamp,
+                        endTimestamp=current_event.startTimestamp,
+                        durationMinutes=session_duration_minutes,
+                        violationDurationMinutes=0.0,
+                        barkEventIds=event_ids
+                    )
+                    violations.append(violation)
+                    current_session_violation = violation
+                else:
+                    # Update existing violation for this session as it continues
+                    current_session_violation.endTimestamp = current_event.startTimestamp
+                    current_session_violation.durationMinutes = session_duration_minutes
+                    current_session_violation.barkEventIds = event_ids
 
         return violations
 
@@ -264,6 +310,55 @@ class LegalViolationTracker:
 
         return absolute_events
 
+    def _infer_recording_paths_from_events(self, events: List[PersistedBarkEvent], recordings_dir: Path, target_date: str) -> List[Path]:
+        """Infer plausible recording paths from persisted events when audio files are unavailable.
+
+        Args:
+            events: Persisted bark events that reference audio file names
+            recordings_dir: Base recordings directory supplied to the tracker
+            target_date: Date currently under analysis (YYYY-MM-DD)
+
+        Returns:
+            Ordered list of unique Path objects pointing to likely recording files
+        """
+        inferred_paths: List[Path] = []
+        seen: set[str] = set()
+        base_dir = Path(recordings_dir) if recordings_dir is not None else Path.cwd()
+
+        for event in events:
+            audio_file_name = getattr(event, 'audio_file_name', None)
+            if not audio_file_name:
+                continue
+
+            candidates = [
+                base_dir / target_date / audio_file_name,
+                base_dir / audio_file_name,
+                Path(audio_file_name)
+            ]
+
+            chosen_path = None
+            for candidate in candidates:
+                candidate = Path(candidate)
+                key = str(candidate)
+                if key in seen:
+                    # Already accounted for this candidate
+                    if chosen_path is not None and key == str(chosen_path):
+                        break
+                    continue
+                if candidate.exists():
+                    chosen_path = candidate
+                    break
+
+            if chosen_path is None:
+                chosen_path = Path(audio_file_name)
+
+            key = str(chosen_path)
+            if key not in seen:
+                inferred_paths.append(chosen_path)
+                seen.add(key)
+
+        return inferred_paths
+
     def analyze_recordings_for_date(self, recordings_dir: Path, target_date: str, detector) -> List[ViolationReport]:
         """
         Analyze recordings for a specific date and detect bylaw violations using advanced bark detection.
@@ -276,26 +371,63 @@ class LegalViolationTracker:
         Returns:
             List of detected violations for that date
         """
+        recordings_dir = Path(recordings_dir)
         logger.info(f"🔍 Analyzing recordings for violations on {target_date}")
-        
+
+        # Track all bark events (persisted + newly detected) and recordings we can associate
+        all_bark_events: List[PersistedBarkEvent] = []
+        date_recordings: List[Path] = []
+        seen_recording_paths = set()
+
+        def add_recording_path(path: Path):
+            path = Path(path)
+            key = str(path)
+            if key not in seen_recording_paths:
+                date_recordings.append(path)
+                seen_recording_paths.add(key)
+
+        # Attempt to load pre-existing events from the database when available
+        pre_collected_events: List[PersistedBarkEvent] = []
+        if self.violation_db and hasattr(self.violation_db, 'load_events'):
+            try:
+                pre_collected_events = self.violation_db.load_events(target_date)
+            except ValueError:
+                pre_collected_events = []
+            if pre_collected_events and not isinstance(pre_collected_events, list):
+                logger.debug("Ignoring pre-collected events with unexpected type from violation database")
+                pre_collected_events = []
+
+        if pre_collected_events:
+            logger.info(f"📁 Found {len(pre_collected_events)} pre-collected bark events for {target_date}")
+            all_bark_events.extend(pre_collected_events)
+            inferred_paths = self._infer_recording_paths_from_events(pre_collected_events, recordings_dir, target_date)
+            for inferred in inferred_paths:
+                add_recording_path(inferred)
+
         # Look for recordings in both flat structure and date folders
-        date_recordings = []
-        
+        recording_files_to_analyze: List[Path] = []
+
         # Check date-based folder first
         date_folder = recordings_dir / target_date
         if date_folder.exists():
-            date_recordings.extend(list(date_folder.glob("*.wav")))
-        
+            date_folder_recordings = list(date_folder.glob("*.wav"))
+            recording_files_to_analyze.extend(date_folder_recordings)
+            for rec in date_folder_recordings:
+                add_recording_path(rec)
+
         # Check flat structure for files with date in name
         date_pattern = target_date.replace('-', '')  # YYYYMMDD format
         flat_recordings = list(recordings_dir.glob(f"*{date_pattern}*.wav"))
-        date_recordings.extend(flat_recordings)
-        
-        if not date_recordings:
-            logger.info(f"No recordings found for {target_date}")
+        recording_files_to_analyze.extend(flat_recordings)
+        for rec in flat_recordings:
+            add_recording_path(rec)
+
+        if not recording_files_to_analyze and not all_bark_events:
+            logger.info(f"No recordings or pre-collected events found for {target_date}")
             return []
-        
-        logger.info(f"Found {len(date_recordings)} recording files for {target_date}")
+
+        if recording_files_to_analyze:
+            logger.info(f"Found {len(recording_files_to_analyze)} recording files for {target_date}")
 
         # Sort recordings chronologically by filename timestamp (FR1 compliance)
         def get_recording_timestamp(recording_path):
@@ -311,15 +443,16 @@ class LegalViolationTracker:
 
         # Sort recordings in chronological order to ensure events are in order (FR1)
         date_recordings.sort(key=get_recording_timestamp)
+        recording_files_to_analyze.sort(key=get_recording_timestamp)
         logger.info(f"Processing recordings in chronological order to comply with FR1")
 
         # Analyze each recording using advanced bark detection
         all_sessions = []
-        all_bark_events = []  # Collect all PersistedBarkEvent objects
         all_original_events = []  # Keep original events with absolute timestamps
         total_analyzed_duration = 0
+        newly_persisted_events: List[PersistedBarkEvent] = []
         
-        for recording_file in date_recordings:
+        for recording_file in recording_files_to_analyze:
             logger.info(f"Analyzing recording: {recording_file.name}")
             try:
                 # Parse recording start time from filename for absolute timestamps
@@ -351,7 +484,7 @@ class LegalViolationTracker:
                 file_persisted_events = self._convert_to_persisted_events(
                     bark_events, recording_file.name, target_date
                 )
-                all_bark_events.extend(file_persisted_events)
+                newly_persisted_events.extend(file_persisted_events)
 
                 # Create events with absolute timestamps for direct violation analysis
                 for event in bark_events:
@@ -378,43 +511,85 @@ class LegalViolationTracker:
 
         logger.info(f"Total sessions for {target_date}: {len(all_sessions)}")
 
+        if newly_persisted_events:
+            combined_count = len(all_bark_events) + len(newly_persisted_events)
+            logger.info(f"💾 Saving {combined_count} bark events to database")
+            all_bark_events.extend(newly_persisted_events)
+            if self.violation_db:
+                self.violation_db.save_events(all_bark_events, target_date)
+
         if not all_bark_events:
-            logger.info(f"No bark events detected in recordings for {target_date}")
+            logger.info(f"No bark events available for violation analysis on {target_date}")
             return []
 
-        # Save all detected bark events to database
-        if all_bark_events:
-            logger.info(f"💾 Saving {len(all_bark_events)} bark events to database")
-            self.violation_db.save_events(all_bark_events, target_date)
-
         # Detect violations using DIRECT EVENT ANALYSIS (hybrid approach)
-        # Use original events with absolute timestamps instead of converting from PersistedBarkEvent
-        continuous_violations = self._analyze_continuous_violations_from_events(all_original_events)
-        sporadic_violations = self._analyze_sporadic_violations_from_events(all_original_events)
+        # Convert PersistedBarkEvent objects to AlgorithmInputEvent format for formal algorithm
+        algorithm_events = self._convert_to_algorithm_input_events(all_bark_events)
 
-        # Combine all violations
-        violation_reports = continuous_violations + sporadic_violations
+        logger.info(f"Converting {len(all_bark_events)} persisted events to {len(algorithm_events)} algorithm input events")
 
-        # Add date context and audio file references to violation reports
-        for violation in violation_reports:
-            violation.date = target_date
-            # Populate audio files list with all processed files
-            violation.audio_files = [str(f) for f in date_recordings]
+        # Apply formal violation detection algorithms
+        print(f"DEBUG: Calling continuous violations analysis with {len(algorithm_events)} events")
+        continuous_violations = self._analyze_continuous_violations_from_events(algorithm_events)
+        print(f"DEBUG: Continuous violations found: {len(continuous_violations)}")
+        sporadic_violations = self._analyze_sporadic_violations_from_events(algorithm_events)
+        print(f"DEBUG: Sporadic violations found: {len(sporadic_violations)}")
 
-        # Convert ViolationReport objects to Violation objects for new persistence
-        violations = self._convert_to_violation_objects(violation_reports, all_bark_events, target_date)
-        
-        logger.info(f"Detected {len(violation_reports)} violations for {target_date}")
-        for i, violation in enumerate(violation_reports, 1):
-            logger.info(f"  {violation.violation_type} violation: {violation.start_time} - {violation.end_time} ({violation.total_bark_duration/60:.1f}min barking)")
-        
+        # Combine all violations (now Violation objects from formal algorithm)
+        violations = continuous_violations + sporadic_violations
+
+        logger.info(f"Detected {len(violations)} violations for {target_date}")
+        for i, violation in enumerate(violations, 1):
+            logger.info(f"  {violation.type} violation: {violation.startTimestamp} - {violation.endTimestamp} ({violation.durationMinutes:.1f}min duration)")
+
         # Save violations to database using new persistence layer
         if violations:
             logger.info(f"💾 Saving {len(violations)} violations to database")
             self.violation_db.save_violations_new(violations, target_date)
 
+        # Convert Violation objects to ViolationReport for backward compatibility
+        violation_reports = self._convert_to_violation_reports(violations, date_recordings, target_date)
+
         return violation_reports
-        
+
+    def _convert_to_violation_reports(self, violations: List[Violation], audio_files: List, target_date: str) -> List[ViolationReport]:
+        """Convert enhanced Violation objects to legacy ViolationReport format for backward compatibility."""
+        violation_reports = []
+
+        for violation in violations:
+            try:
+                # Parse ISO timestamps to extract time components
+                start_dt = datetime.fromisoformat(violation.startTimestamp.replace('Z', '+00:00'))
+                end_dt = datetime.fromisoformat(violation.endTimestamp.replace('Z', '+00:00'))
+
+                # Format time strings for ViolationReport
+                start_time_str = start_dt.strftime("%I:%M %p").lstrip('0')
+                end_time_str = end_dt.strftime("%I:%M %p").lstrip('0')
+
+                # Create ViolationReport for backward compatibility
+                violation_report = ViolationReport(
+                    date=target_date,
+                    start_time=start_time_str,
+                    end_time=end_time_str,
+                    violation_type="Constant" if violation.type == "Continuous" else "Intermittent",
+                    total_bark_duration=violation.durationMinutes * 60,  # Convert to seconds
+                    total_incident_duration=violation.durationMinutes * 60,  # Convert to seconds
+                    audio_files=[str(f) for f in audio_files],
+                    audio_file_start_times=[start_time_str],
+                    audio_file_end_times=[end_time_str],
+                    confidence_scores=[0.8],  # Placeholder for compatibility
+                    peak_confidence=0.8,  # Placeholder for compatibility
+                    avg_confidence=0.8,  # Placeholder for compatibility
+                    created_timestamp=datetime.now().isoformat()
+                )
+                violation_reports.append(violation_report)
+
+            except (ValueError, AttributeError) as e:
+                logger.error(f"Failed to convert violation to report format: {e}")
+                continue
+
+        return violation_reports
+
     def _events_to_sessions(self, bark_events: List, gap_threshold: float) -> List[BarkingSession]:
         """Convert bark events to barking sessions using gap threshold."""
         if not bark_events:
@@ -704,24 +879,53 @@ class LegalViolationTracker:
         violations = []
 
         for report in violation_reports:
-            # Generate unique violation ID
-            violation_id = str(uuid.uuid4())
-
             # Find associated bark events for this violation based on time range
             bark_event_ids = self._find_events_for_violation(report, all_bark_events)
 
+            # Convert ViolationReport to enhanced Violation model
+            # Map violation types from ViolationReport to enhanced model
+            violation_type = "Continuous" if report.violation_type == "Constant" else "Sporadic"
+
+            # Convert times to ISO 8601 timestamps
+            # For backward compatibility, use same timestamp for all three fields
+            report_datetime = f"{target_date}T{self._convert_time_to_24h(report.start_time)}:00.000Z"
+            end_datetime = f"{target_date}T{self._convert_time_to_24h(report.end_time)}:00.000Z"
+
             violation = Violation(
-                violation_id=violation_id,
-                violation_type=report.violation_type,
-                violation_date=target_date,
-                violation_start_time=report.start_time,
-                violation_end_time=report.end_time,
-                bark_event_ids=bark_event_ids
+                type=violation_type,
+                startTimestamp=report_datetime,
+                violationTriggerTimestamp=report_datetime,  # Same as start for backward compatibility
+                endTimestamp=end_datetime,
+                durationMinutes=report.total_incident_duration / 60.0,  # Convert seconds to minutes
+                violationDurationMinutes=report.total_bark_duration / 60.0,  # Convert seconds to minutes
+                barkEventIds=bark_event_ids
             )
 
             violations.append(violation)
 
         return violations
+
+    def _convert_time_to_24h(self, time_str: str) -> str:
+        """Convert 12-hour time format to 24-hour format for ISO 8601 timestamps.
+
+        Args:
+            time_str: Time in format like "6:25 AM" or "2:30 PM"
+
+        Returns:
+            Time in 24-hour format like "06:25" or "14:30"
+        """
+        try:
+            # Parse 12-hour format and convert to 24-hour
+            dt = datetime.strptime(time_str, "%I:%M %p")
+            return dt.strftime("%H:%M")
+        except ValueError:
+            try:
+                # Try without spaces
+                dt = datetime.strptime(time_str, "%I:%M%p")
+                return dt.strftime("%H:%M")
+            except ValueError:
+                # If already in 24-hour format or other format, return as-is
+                return time_str.split()[0] if " " in time_str else time_str
 
     def _format_timestamp_to_time(self, timestamp_seconds: float) -> str:
         """Convert timestamp in seconds to HH:MM:SS format.

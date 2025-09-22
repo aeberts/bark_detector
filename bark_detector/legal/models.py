@@ -3,7 +3,25 @@
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any
 import json
+from datetime import datetime
 from ..core.models import BarkingSession
+
+
+@dataclass
+class AlgorithmInputEvent:
+    """Algorithm input event for violation detection processing."""
+    id: str  # Unique identifier (mapped from bark_id)
+    startTimestamp: str  # ISO 8601 format timestamp
+
+    @classmethod
+    def from_persisted_bark_event(cls, event: 'PersistedBarkEvent') -> 'AlgorithmInputEvent':
+        """Convert PersistedBarkEvent to AlgorithmInputEvent format."""
+        # Combine realworld_date and realworld_time into ISO 8601 format
+        datetime_str = f"{event.realworld_date}T{event.realworld_time}.000Z"
+        return cls(
+            id=event.bark_id,
+            startTimestamp=datetime_str
+        )
 
 
 @dataclass
@@ -52,13 +70,14 @@ class PersistedBarkEvent:
 
 @dataclass
 class Violation:
-    """Represents raw violation analysis results, separate from formatted ViolationReport."""
-    violation_id: str  # Unique identifier for this violation
-    violation_type: str  # "Constant" or "Intermittent"
-    violation_date: str  # YYYY-MM-DD format
-    violation_start_time: str  # HH:MM:SS format when violation started
-    violation_end_time: str  # HH:MM:SS format when violation ended
-    bark_event_ids: List[str]  # Array of bark_id references from PersistedBarkEvent
+    """Enhanced violation model with three-timestamp architecture for legal compliance."""
+    type: str  # "Continuous" or "Sporadic"
+    startTimestamp: str  # ISO 8601 - when barking incident began (legal compliance)
+    violationTriggerTimestamp: str  # ISO 8601 - when violation was detected (system audit)
+    endTimestamp: str  # ISO 8601 - when barking incident actually ended (legal compliance)
+    durationMinutes: float  # Total incident duration for legal evidence (endTimestamp - startTimestamp)
+    violationDurationMinutes: float  # Duration from trigger to end (endTimestamp - violationTriggerTimestamp)
+    barkEventIds: List[str]  # Array of UUIDs of all bark events in the session
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""

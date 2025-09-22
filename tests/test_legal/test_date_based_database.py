@@ -599,71 +599,75 @@ class TestViolation:
     def test_violation_creation(self):
         """Test basic Violation creation."""
         violation = Violation(
-            violation_id="violation_20250815_001",
-            violation_type="Constant",
-            violation_date="2025-08-15",
-            violation_start_time="06:25:00",
-            violation_end_time="06:30:00",
-            bark_event_ids=["bark_20250815_062530_001", "bark_20250815_062535_002"]
+            type="Continuous",
+            startTimestamp="2025-08-15T06:25:00.000Z",
+            violationTriggerTimestamp="2025-08-15T06:28:00.000Z",
+            endTimestamp="2025-08-15T06:30:00.000Z",
+            durationMinutes=5.0,
+            violationDurationMinutes=2.0,
+            barkEventIds=["bark_20250815_062530_001", "bark_20250815_062535_002"]
         )
-        
-        assert violation.violation_id == "violation_20250815_001"
-        assert violation.violation_type == "Constant"
-        assert len(violation.bark_event_ids) == 2
+
+        assert violation.type == "Continuous"
+        assert violation.startTimestamp == "2025-08-15T06:25:00.000Z"
+        assert len(violation.barkEventIds) == 2
     
     def test_violation_to_dict(self):
         """Test Violation to_dict serialization."""
         violation = Violation(
-            violation_id="violation_20250815_001",
-            violation_type="Intermittent",
-            violation_date="2025-08-15",
-            violation_start_time="06:25:00",
-            violation_end_time="06:45:00",
-            bark_event_ids=["bark_001", "bark_002", "bark_003"]
+            type="Sporadic",
+            startTimestamp="2025-08-15T06:25:00.000Z",
+            violationTriggerTimestamp="2025-08-15T06:40:00.000Z",
+            endTimestamp="2025-08-15T06:45:00.000Z",
+            durationMinutes=20.0,
+            violationDurationMinutes=5.0,
+            barkEventIds=["bark_001", "bark_002", "bark_003"]
         )
-        
+
         data = violation.to_dict()
-        
+
         assert isinstance(data, dict)
-        assert data['violation_id'] == "violation_20250815_001"
-        assert data['violation_type'] == "Intermittent"
-        assert len(data['bark_event_ids']) == 3
+        assert data['type'] == "Sporadic"
+        assert data['startTimestamp'] == "2025-08-15T06:25:00.000Z"
+        assert len(data['barkEventIds']) == 3
     
     def test_violation_from_dict(self):
         """Test Violation from_dict deserialization."""
         data = {
-            'violation_id': "violation_20250815_001",
-            'violation_type': "Constant",
-            'violation_date': "2025-08-15",
-            'violation_start_time': "06:25:00",
-            'violation_end_time': "06:30:00",
-            'bark_event_ids': ["bark_001", "bark_002"]
+            'type': "Continuous",
+            'startTimestamp': "2025-08-15T06:25:00.000Z",
+            'violationTriggerTimestamp': "2025-08-15T06:28:00.000Z",
+            'endTimestamp': "2025-08-15T06:30:00.000Z",
+            'durationMinutes': 5.0,
+            'violationDurationMinutes': 2.0,
+            'barkEventIds': ["bark_001", "bark_002"]
         }
-        
+
         violation = Violation.from_dict(data)
-        
-        assert violation.violation_id == "violation_20250815_001"
-        assert violation.violation_type == "Constant"
-        assert len(violation.bark_event_ids) == 2
+
+        assert violation.type == "Continuous"
+        assert violation.startTimestamp == "2025-08-15T06:25:00.000Z"
+        assert len(violation.barkEventIds) == 2
     
     def test_violation_json_serialization(self):
         """Test Violation JSON serialization and deserialization."""
         original_violation = Violation(
-            violation_id="violation_20250815_002",
-            violation_type="Intermittent",
-            violation_date="2025-08-15",
-            violation_start_time="07:15:00",
-            violation_end_time="07:35:00",
-            bark_event_ids=["bark_001", "bark_002", "bark_003", "bark_004"]
+            type="Sporadic",
+            startTimestamp="2025-08-15T07:15:00.000Z",
+            violationTriggerTimestamp="2025-08-15T07:30:00.000Z",
+            endTimestamp="2025-08-15T07:35:00.000Z",
+            durationMinutes=20.0,
+            violationDurationMinutes=5.0,
+            barkEventIds=["bark_001", "bark_002", "bark_003", "bark_004"]
         )
-        
+
         # Convert to JSON and back
         json_str = original_violation.to_json()
         restored_violation = Violation.from_json(json_str)
-        
-        assert restored_violation.violation_id == original_violation.violation_id
-        assert restored_violation.violation_type == original_violation.violation_type
-        assert restored_violation.bark_event_ids == original_violation.bark_event_ids
+
+        assert restored_violation.type == original_violation.type
+        assert restored_violation.startTimestamp == original_violation.startTimestamp
+        assert restored_violation.barkEventIds == original_violation.barkEventIds
 
 
 class TestNewDatabaseMethods:
@@ -795,12 +799,13 @@ class TestNewDatabaseMethods:
             # Create test violations
             violations = [
                 Violation(
-                    violation_id="violation_001",
-                    violation_type="Constant",
-                    violation_date="2025-08-15",
-                    violation_start_time="06:25:00",
-                    violation_end_time="06:30:00",
-                    bark_event_ids=["bark_001", "bark_002"]
+                    type="Continuous",
+                    startTimestamp="2025-08-15T06:25:00.000Z",
+                    violationTriggerTimestamp="2025-08-15T06:28:00.000Z",
+                    endTimestamp="2025-08-15T06:30:00.000Z",
+                    durationMinutes=5.0,
+                    violationDurationMinutes=2.0,
+                    barkEventIds=["bark_001", "bark_002"]
                 )
             ]
             
@@ -820,7 +825,7 @@ class TestNewDatabaseMethods:
             
             assert len(data['violations']) == 1
             assert data['metadata']['date'] == '2025-08-15'
-            assert data['violations'][0]['violation_id'] == 'violation_001'
+            assert data['violations'][0]['type'] == 'Continuous'
     
     def test_load_violations_new_reads_from_file(self):
         """Test load_violations_new correctly reads violations from file."""
@@ -836,12 +841,13 @@ class TestNewDatabaseMethods:
             test_data = {
                 'violations': [
                     {
-                        'violation_id': "violation_001",
-                        'violation_type': "Intermittent",
-                        'violation_date': "2025-08-15",
-                        'violation_start_time': "06:25:00",
-                        'violation_end_time': "06:45:00",
-                        'bark_event_ids': ["bark_001", "bark_002", "bark_003"]
+                        'type': "Sporadic",
+                        'startTimestamp': "2025-08-15T06:25:00.000Z",
+                        'violationTriggerTimestamp': "2025-08-15T06:40:00.000Z",
+                        'endTimestamp': "2025-08-15T06:45:00.000Z",
+                        'durationMinutes': 20.0,
+                        'violationDurationMinutes': 5.0,
+                        'barkEventIds': ["bark_001", "bark_002", "bark_003"]
                     }
                 ],
                 'metadata': {
@@ -858,9 +864,9 @@ class TestNewDatabaseMethods:
             violations = db.load_violations_new(test_date)
             
             assert len(violations) == 1
-            assert violations[0].violation_id == "violation_001"
-            assert violations[0].violation_type == "Intermittent"
-            assert len(violations[0].bark_event_ids) == 3
+            assert violations[0].type == "Sporadic"
+            assert violations[0].startTimestamp == "2025-08-15T06:25:00.000Z"
+            assert len(violations[0].barkEventIds) == 3
     
     def test_save_events_empty_list(self):
         """Test save_events handles empty list gracefully."""

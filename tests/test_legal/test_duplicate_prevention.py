@@ -174,10 +174,13 @@ class TestDuplicateViolationPrevention:
         mock_detector.session_gap_threshold = 10.0
         mock_detector.analysis_sensitivity = 0.30
 
-        # Mock bark events for 6-minute violation
-        mock_bark_events = [
-            BarkEvent(start_time=10.0, end_time=370.0, confidence=0.8)
-        ]
+        # Mock bark events for 6-minute violation with gaps <= 8 seconds
+        mock_bark_events = []
+        for idx in range(40):
+            start = 10.0 + idx * 8.0
+            event = BarkEvent(start_time=start, end_time=start + 2.0, confidence=0.8)
+            event.triggering_classes = ["Bark"]
+            mock_bark_events.append(event)
         mock_detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=mock_bark_events)
         
         # Create test recording file

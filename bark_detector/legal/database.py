@@ -242,23 +242,51 @@ class ViolationDatabase:
                 with open(violations_file, 'r') as f:
                     data = json.load(f)
                     for violation_data in data.get('violations', []):
-                        # Remove violation_id field if present (new format compatibility)
+                        # New-format violations (Violation model persisted as JSON)
+                        if 'type' in violation_data and 'startTimestamp' in violation_data:
+                            try:
+                                start_dt = datetime.fromisoformat(violation_data['startTimestamp'].replace('Z', '+00:00'))
+                                end_dt = datetime.fromisoformat(violation_data['endTimestamp'].replace('Z', '+00:00'))
+                            except (KeyError, ValueError):
+                                logger.warning(f"Skipping violation with invalid timestamps in {violations_file}")
+                                continue
+
+                            start_time_str = start_dt.strftime("%I:%M %p").lstrip('0')
+                            end_time_str = end_dt.strftime("%I:%M %p").lstrip('0')
+
+                            violation_report = ViolationReport(
+                                date=date,
+                                start_time=start_time_str,
+                                end_time=end_time_str,
+                                violation_type="Constant" if violation_data.get('type') == "Continuous" else "Intermittent",
+                                total_bark_duration=violation_data.get('violationDurationMinutes', 0.0) * 60.0,
+                                total_incident_duration=violation_data.get('durationMinutes', 0.0) * 60.0,
+                                audio_files=violation_data.get('audio_files', []),
+                                audio_file_start_times=violation_data.get('audio_file_start_times', [start_time_str]),
+                                audio_file_end_times=violation_data.get('audio_file_end_times', [end_time_str]),
+                                confidence_scores=violation_data.get('confidence_scores', []),
+                                peak_confidence=violation_data.get('peak_confidence', 0.0),
+                                avg_confidence=violation_data.get('avg_confidence', 0.0),
+                                created_timestamp=violation_data.get('created_timestamp', datetime.now().isoformat())
+                            )
+
+                            violations.append(violation_report)
+                            continue
+
+                        # Remove violation_id field if present (legacy compatibility)
                         if 'violation_id' in violation_data:
                             violation_data.pop('violation_id')
 
                         # Handle different field names between Violation and ViolationReport models
-                        # Map Violation model fields to ViolationReport fields
                         if 'violation_date' in violation_data:
                             violation_data['date'] = violation_data.pop('violation_date')
                         if 'violation_start_time' in violation_data:
                             violation_data['start_time'] = violation_data.pop('violation_start_time')
                         if 'violation_end_time' in violation_data:
                             violation_data['end_time'] = violation_data.pop('violation_end_time')
-                        # Remove bark_event_ids as ViolationReport doesn't have this field
                         if 'bark_event_ids' in violation_data:
                             violation_data.pop('bark_event_ids')
 
-                        # Add required ViolationReport fields that Violation model doesn't have
                         violation_data.setdefault('total_bark_duration', 0.0)
                         violation_data.setdefault('total_incident_duration', 0.0)
                         violation_data.setdefault('audio_files', [])
@@ -269,7 +297,6 @@ class ViolationDatabase:
                         violation_data.setdefault('avg_confidence', 0.0)
                         violation_data.setdefault('created_timestamp', '')
 
-                        # Add backward compatibility for records without new timestamp fields
                         if 'audio_file_start_times' not in violation_data:
                             violation_data['audio_file_start_times'] = ["00:00:00"] * len(violation_data.get('audio_files', []))
                         if 'audio_file_end_times' not in violation_data:

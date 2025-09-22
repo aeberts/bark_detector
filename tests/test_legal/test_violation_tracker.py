@@ -8,9 +8,29 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 from bark_detector.legal.tracker import LegalViolationTracker
-from bark_detector.legal.models import ViolationReport, PersistedBarkEvent, Violation
+from bark_detector.legal.models import ViolationReport, PersistedBarkEvent, Violation, AlgorithmInputEvent
 from bark_detector.legal.database import ViolationDatabase
 from bark_detector.core.models import BarkEvent, BarkingSession
+
+
+def create_continuous_bark_events(total_minutes: float = 6.0, gap_seconds: float = 8.0, confidence: float = 0.8):
+    """Generate BarkEvent sequences that satisfy continuous violation criteria."""
+    events = []
+    total_seconds = total_minutes * 60.0
+    start = 0.0
+    while start <= total_seconds:
+        event = BarkEvent(start_time=start, end_time=start + 2.0, confidence=confidence, intensity=0.5)
+        event.triggering_classes = ["Bark"]
+        events.append(event)
+        start += gap_seconds
+    return events
+
+
+def build_tracker_with_temp_db(temp_dir: Path, interactive: bool = False) -> LegalViolationTracker:
+    """Create a tracker whose violation database writes to a temporary directory."""
+    violations_dir = Path(temp_dir) / 'violations'
+    db = ViolationDatabase(violations_dir=violations_dir)
+    return LegalViolationTracker(violation_db=db, interactive=interactive)
 
 
 class TestLegalViolationTracker:
@@ -62,32 +82,34 @@ class TestLegalViolationTracker:
             assert len(violations) == 1
             mock_create.assert_called_once_with(long_session, "Constant")
     
-    @patch('librosa.load')
+    @patch('bark_detector.legal.tracker.librosa.load')
     def test_analyze_recordings_for_date(self, mock_librosa_load, temp_dir):
         """Test analyzing recordings for a specific date"""
-        tracker = LegalViolationTracker(interactive=False)
+        tracker = build_tracker_with_temp_db(temp_dir)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
         mock_detector.analysis_sensitivity = 0.30
 
-        # Mock the _detect_barks_in_buffer_with_sensitivity method to return bark events for a 6-minute file
-        mock_bark_events = [
-            BarkEvent(start_time=10.0, end_time=370.0, confidence=0.8)  # 6+ minute bark event
-        ]
+        # Mock the _detect_barks_in_buffer_with_sensitivity method to return bark events for continuous violation
+        mock_bark_events = create_continuous_bark_events(total_minutes=6.0, gap_seconds=8.0)
         mock_detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=mock_bark_events)
-        
+
         # Create test recording files
         date_folder = temp_dir / "2025-08-14"
         date_folder.mkdir()
         test_file = date_folder / "bark_recording_20250814_120000.wav"
         test_file.touch()
-        
+
         # Mock audio loading - simulate 6 minute file (continuous violation)
         mock_librosa_load.return_value = (np.random.rand(5760000), 16000)  # 6 minutes at 16kHz
-        
+
         violations = tracker.analyze_recordings_for_date(temp_dir, "2025-08-14", mock_detector)
-        
+
+        print(f"DEBUG: librosa.load called {mock_librosa_load.call_count} times")
+        print(f"DEBUG: detector method called {mock_detector._detect_barks_in_buffer_with_sensitivity.call_count} times")
+        print(f"DEBUG: violations returned: {len(violations)}")
+
         assert len(violations) == 1
         violation = violations[0]
         assert violation.date == "2025-08-14"
@@ -98,7 +120,7 @@ class TestLegalViolationTracker:
     @patch('librosa.load')
     def test_analyze_recordings_no_violations(self, mock_librosa_load, temp_dir):
         """Test analyzing recordings with no violations"""
-        tracker = LegalViolationTracker(interactive=False)
+        tracker = build_tracker_with_temp_db(temp_dir)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
@@ -125,7 +147,7 @@ class TestLegalViolationTracker:
     
     def test_analyze_recordings_no_files(self, temp_dir):
         """Test analyzing recordings when no files exist"""
-        tracker = LegalViolationTracker(interactive=False)
+        tracker = build_tracker_with_temp_db(temp_dir)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
@@ -137,25 +159,23 @@ class TestLegalViolationTracker:
     @patch('librosa.load')
     def test_analyze_recordings_flat_structure(self, mock_librosa_load, temp_dir):
         """Test analyzing recordings in flat directory structure"""
-        tracker = LegalViolationTracker(interactive=False)
+        tracker = build_tracker_with_temp_db(temp_dir)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
         mock_detector.analysis_sensitivity = 0.30
 
-        # Mock the _detect_barks_in_buffer_with_sensitivity method to return bark events for a 6-minute file
-        mock_bark_events = [
-            BarkEvent(start_time=10.0, end_time=370.0, confidence=0.8)  # 6+ minute bark event
-        ]
+        # Mock the _detect_barks_in_buffer_with_sensitivity method to return bark events for continuous violation
+        mock_bark_events = create_continuous_bark_events(total_minutes=6.0, gap_seconds=8.0)
         mock_detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=mock_bark_events)
-        
+
         # Create test recording file in flat structure
         test_file = temp_dir / "bark_recording_20250814_120000.wav"
         test_file.touch()
-        
+
         # Mock audio loading - simulate 6 minute file
         mock_librosa_load.return_value = (np.random.rand(5760000), 16000)
-        
+
         violations = tracker.analyze_recordings_for_date(temp_dir, "2025-08-14", mock_detector)
         
         assert len(violations) == 1
@@ -166,7 +186,7 @@ class TestLegalViolationTracker:
     @patch('librosa.load')
     def test_analyze_recordings_audio_error(self, mock_librosa_load, temp_dir):
         """Test handling audio loading errors"""
-        tracker = LegalViolationTracker(interactive=False)
+        tracker = build_tracker_with_temp_db(temp_dir)
         mock_detector = Mock()
         mock_detector.sample_rate = 16000
         mock_detector.session_gap_threshold = 10.0
@@ -289,11 +309,12 @@ class TestLegalViolationTracker:
         assert len(result) == 1
         violation = result[0]
         assert isinstance(violation, Violation)
-        assert violation.violation_type == "Constant"
-        assert violation.violation_date == "2025-09-15"
-        assert violation.violation_start_time == "06:30 AM"
-        assert violation.violation_end_time == "06:38 AM"
-        assert "event-123" in violation.bark_event_ids
+        assert violation.type == "Continuous"
+        assert violation.startTimestamp == "2025-09-15T06:30:00.000Z"
+        assert violation.endTimestamp == "2025-09-15T06:38:00.000Z"
+        assert pytest.approx(violation.durationMinutes, rel=1e-3) == 8.0
+        assert pytest.approx(violation.violationDurationMinutes, rel=1e-3) == 8.0
+        assert "event-123" in violation.barkEventIds
 
     def test_format_timestamp_with_milliseconds(self):
         """Test timestamp formatting with millisecond precision"""
@@ -402,12 +423,12 @@ class TestLegalViolationTracker:
         # Mock audio data and bark events
         mock_librosa.load.return_value = (np.array([0.1, 0.2, 0.3] * 1000), 16000)
 
-        bark_events = [
-            BarkEvent(start_time=1.0, end_time=181.0, confidence=0.8, intensity=0.5),  # 3 minutes
-            BarkEvent(start_time=185.0, end_time=365.0, confidence=0.7, intensity=0.4)  # 3 minutes, 4s gap
-        ]
-        bark_events[0].triggering_classes = ["Bark"]
-        bark_events[1].triggering_classes = ["Yip"]
+        bark_events = create_continuous_bark_events(total_minutes=6.0, gap_seconds=8.0)
+        # Adjust bark types for coverage
+        if bark_events:
+            bark_events[0].triggering_classes = ["Bark"]
+        if len(bark_events) > 1:
+            bark_events[1].triggering_classes = ["Yip"]
 
         mock_detector._detect_barks_in_buffer_with_sensitivity = Mock(return_value=bark_events)
 
@@ -577,7 +598,7 @@ class TestLegalViolationTracker:
     @patch('librosa.load')
     def test_analyze_recordings_uses_analysis_sensitivity(self, mock_librosa_load, temp_dir):
         """Test that analyze_recordings_for_date uses analysis_sensitivity instead of real-time sensitivity."""
-        tracker = LegalViolationTracker(interactive=False)
+        tracker = build_tracker_with_temp_db(temp_dir)
 
         # Create mock detector with different sensitivities
         mock_detector = Mock()
@@ -588,9 +609,7 @@ class TestLegalViolationTracker:
 
         # Mock analysis method specifically
         mock_detector._detect_barks_in_buffer_with_sensitivity = Mock()
-        mock_detector._detect_barks_in_buffer_with_sensitivity.return_value = [
-            BarkEvent(start_time=10.0, end_time=370.0, confidence=0.8)  # 6+ minute bark event
-        ]
+        mock_detector._detect_barks_in_buffer_with_sensitivity.return_value = create_continuous_bark_events(total_minutes=6.5, gap_seconds=8.0)
 
         # Create test recording files
         date_folder = temp_dir / "2025-08-14"
@@ -617,7 +636,7 @@ class TestLegalViolationTracker:
     @patch('librosa.load')
     def test_dual_sensitivity_advantage_more_detections(self, mock_librosa_load, temp_dir):
         """Test that analysis_sensitivity detects more bark events than real-time sensitivity would."""
-        tracker = LegalViolationTracker(interactive=False)
+        tracker = build_tracker_with_temp_db(temp_dir)
 
         # Create mock detector
         mock_detector = Mock()
@@ -629,15 +648,12 @@ class TestLegalViolationTracker:
         # Simulate different detection results based on sensitivity
         def mock_detect_with_sensitivity(audio_data, sensitivity):
             if sensitivity == 0.68:
-                # Real-time sensitivity detects fewer events
-                return [BarkEvent(start_time=10.0, end_time=20.0, confidence=0.75)]
+                # Real-time sensitivity detects fewer events that do not reach violation threshold
+                events = create_continuous_bark_events(total_minutes=2.0, gap_seconds=8.0, confidence=0.75)
+                return events
             elif sensitivity == 0.30:
-                # Analysis sensitivity detects more events
-                return [
-                    BarkEvent(start_time=10.0, end_time=20.0, confidence=0.75),
-                    BarkEvent(start_time=30.0, end_time=40.0, confidence=0.45),  # Lower confidence but still above 0.30
-                    BarkEvent(start_time=50.0, end_time=360.0, confidence=0.55)  # Long event for violation
-                ]
+                # Analysis sensitivity detects enough events to form a violation
+                return create_continuous_bark_events(total_minutes=6.0, gap_seconds=8.0, confidence=0.55)
 
         mock_detector._detect_barks_in_buffer_with_sensitivity.side_effect = mock_detect_with_sensitivity
 
@@ -689,64 +705,160 @@ class TestLegalViolationTracker:
         assert len(groups) == 2  # Events 1,2 in group 1, events 3,4 in group 2
 
     def test_analyze_continuous_violations_from_events(self):
-        """Test direct continuous violation analysis from events."""
+        """Test direct continuous violation analysis from AlgorithmInputEvent objects."""
         tracker = LegalViolationTracker(interactive=False)
 
-        # Create events for a 6-minute continuous violation (gaps ≤60s)
+        # Create AlgorithmInputEvent objects for a 6-minute continuous violation (gaps ≤10s)
+        # Based on algorithm spec: 10-second max gap, 5-minute minimum session
         events = []
-        current_time = 0.0
-        for i in range(12):  # 12 events of 30s each = 6 minutes total
-            events.append(type('BarkEvent', (), {
-                'start_time': current_time,
-                'end_time': current_time + 30.0,
-                'confidence': 0.8
-            })())
-            current_time += 35.0  # 35s gap = 5s between events (≤60s)
+        base_datetime = datetime(2025, 9, 21, 10, 0, 0)
+
+        # Create events with 5-second gaps (within 10-second threshold)
+        for i in range(61):  # 61 events over 300 seconds = 5+ minutes
+            event_time = base_datetime + timedelta(seconds=i * 5)
+            events.append(AlgorithmInputEvent(
+                id=f"bark-{i:03d}",
+                startTimestamp=event_time.isoformat() + ".000Z"
+            ))
 
         violations = tracker._analyze_continuous_violations_from_events(events)
 
         assert len(violations) == 1
-        assert violations[0].violation_type == "Constant"
-        assert violations[0].total_bark_duration >= 300  # ≥5 minutes
+        assert violations[0].type == "Continuous"
+        assert violations[0].durationMinutes >= 5.0  # ≥5 minutes
 
-        # Test with short events (should not trigger)
-        short_events = [
-            type('BarkEvent', (), {'start_time': 0.0, 'end_time': 10.0, 'confidence': 0.8})(),
-            type('BarkEvent', (), {'start_time': 20.0, 'end_time': 30.0, 'confidence': 0.8})(),
-        ]
+        # Test with short duration (should not trigger violation)
+        short_events = []
+        for i in range(30):  # 30 events over 145 seconds = <5 minutes
+            event_time = base_datetime + timedelta(seconds=i * 5)
+            short_events.append(AlgorithmInputEvent(
+                id=f"short-{i:03d}",
+                startTimestamp=event_time.isoformat() + ".000Z"
+            ))
 
         violations = tracker._analyze_continuous_violations_from_events(short_events)
         assert len(violations) == 0
 
+        # Test with gaps too large (should not trigger violation)
+        gap_events = []
+        for i in range(61):  # Events with 15-second gaps (>10 second threshold)
+            event_time = base_datetime + timedelta(seconds=i * 15)
+            gap_events.append(AlgorithmInputEvent(
+                id=f"gap-{i:03d}",
+                startTimestamp=event_time.isoformat() + ".000Z"
+            ))
+
+        violations = tracker._analyze_continuous_violations_from_events(gap_events)
+        assert len(violations) == 0
+
     def test_analyze_sporadic_violations_from_events(self):
-        """Test direct sporadic violation analysis from events."""
+        """Test direct sporadic violation analysis from AlgorithmInputEvent objects."""
         tracker = LegalViolationTracker(interactive=False)
 
-        # Create events for 16-minute sporadic violation (gaps ≤5min)
+        # Create AlgorithmInputEvent objects for 16-minute sporadic violation (gaps ≤5min)
+        # Based on algorithm spec: 5-minute max gap, 15-minute minimum session
         events = []
-        current_time = 0.0
-        for i in range(8):  # 8 events of 2 minutes each = 16 minutes total
-            events.append(type('BarkEvent', (), {
-                'start_time': current_time,
-                'end_time': current_time + 120.0,  # 2 minutes
-                'confidence': 0.8
-            })())
-            current_time += 240.0  # 4-minute gaps (≤5min)
+        base_datetime = datetime(2025, 9, 21, 10, 0, 0)
+
+        # Create events with 4-minute gaps (within 5-minute threshold)
+        for i in range(5):  # 5 events over 16 minutes = 15+ minutes duration
+            event_time = base_datetime + timedelta(minutes=i * 4)
+            events.append(AlgorithmInputEvent(
+                id=f"sporadic-{i:03d}",
+                startTimestamp=event_time.isoformat() + ".000Z"
+            ))
 
         violations = tracker._analyze_sporadic_violations_from_events(events)
 
         assert len(violations) == 1
-        assert violations[0].violation_type == "Intermittent"
-        assert violations[0].total_bark_duration >= 900  # ≥15 minutes
+        assert violations[0].type == "Sporadic"
+        assert violations[0].durationMinutes >= 15.0  # ≥15 minutes
 
-        # Test with events separated by large gaps (should not trigger)
-        separated_events = [
-            type('BarkEvent', (), {'start_time': 0.0, 'end_time': 300.0, 'confidence': 0.8})(),    # 5 min
-            type('BarkEvent', (), {'start_time': 700.0, 'end_time': 1000.0, 'confidence': 0.8})(), # 5 min, 7min gap
+        # Test with short duration (should not trigger violation)
+        short_events = []
+        for i in range(3):  # 3 events over 8 minutes = <15 minutes
+            event_time = base_datetime + timedelta(minutes=i * 4)
+            short_events.append(AlgorithmInputEvent(
+                id=f"short-sporadic-{i:03d}",
+                startTimestamp=event_time.isoformat() + ".000Z"
+            ))
+
+        violations = tracker._analyze_sporadic_violations_from_events(short_events)
+        assert len(violations) == 0
+
+        # Test with gaps too large (should not trigger violation)
+        gap_events = []
+        for i in range(5):  # Events with 6-minute gaps (>5 minute threshold)
+            event_time = base_datetime + timedelta(minutes=i * 6)
+            gap_events.append(AlgorithmInputEvent(
+                id=f"gap-sporadic-{i:03d}",
+                startTimestamp=event_time.isoformat() + ".000Z"
+            ))
+
+        violations = tracker._analyze_sporadic_violations_from_events(gap_events)
+        assert len(violations) == 0
+
+    def test_convert_to_algorithm_input_events(self):
+        """Test conversion of PersistedBarkEvent to AlgorithmInputEvent objects."""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create test PersistedBarkEvent objects
+        persisted_events = [
+            PersistedBarkEvent(
+                realworld_date="2025-09-21",
+                realworld_time="10:00:00",
+                bark_id="test-001",
+                bark_type="Bark",
+                est_dog_size=None,
+                audio_file_name="bark_recording_20250921_100000.wav",
+                bark_audiofile_timestamp="00:00:05.000",
+                confidence=0.8,
+                intensity=0.5
+            ),
+            PersistedBarkEvent(
+                realworld_date="2025-09-21",
+                realworld_time="10:00:15",
+                bark_id="test-002",
+                bark_type="Howl",
+                est_dog_size=None,
+                audio_file_name="bark_recording_20250921_100000.wav",
+                bark_audiofile_timestamp="00:00:20.000",
+                confidence=0.9,
+                intensity=0.7
+            )
         ]
 
-        violations = tracker._analyze_sporadic_violations_from_events(separated_events, 300.0)
-        assert len(violations) == 0  # 7-minute gap exceeds 5-minute threshold
+        # Convert to algorithm input events
+        algorithm_events = tracker._convert_to_algorithm_input_events(persisted_events)
+
+        assert len(algorithm_events) == 2
+
+        # Verify first event
+        assert algorithm_events[0].id == "test-001"
+        assert algorithm_events[0].startTimestamp == "2025-09-21T10:00:00.000Z"
+
+        # Verify second event
+        assert algorithm_events[1].id == "test-002"
+        assert algorithm_events[1].startTimestamp == "2025-09-21T10:00:15.000Z"
+
+        # Verify sorted by timestamp
+        assert algorithm_events[0].startTimestamp <= algorithm_events[1].startTimestamp
+
+        # Test with invalid timestamp (should skip)
+        invalid_event = PersistedBarkEvent(
+            realworld_date="invalid-date",
+            realworld_time="invalid-time",
+            bark_id="test-invalid",
+            bark_type="Bark",
+            est_dog_size=None,
+            audio_file_name="test.wav",
+            bark_audiofile_timestamp="00:00:05.000",
+            confidence=0.8,
+            intensity=0.5
+        )
+
+        algorithm_events = tracker._convert_to_algorithm_input_events([invalid_event])
+        assert len(algorithm_events) == 0  # Should skip invalid event
 
     def test_convert_to_absolute_timestamps(self):
         """Test conversion of PersistedBarkEvent to absolute timestamps."""
@@ -807,22 +919,7 @@ class TestLegalViolationTracker:
             mock_detector.analysis_sensitivity = 0.3
 
             # Mock bark events for violation analysis
-            mock_bark_events = [
-                BarkEvent(start_time=0.0, end_time=30.0, confidence=0.8, intensity=0.5),
-                BarkEvent(start_time=35.0, end_time=65.0, confidence=0.9, intensity=0.6),
-                BarkEvent(start_time=70.0, end_time=100.0, confidence=0.7, intensity=0.4),
-                BarkEvent(start_time=105.0, end_time=135.0, confidence=0.8, intensity=0.5),
-                BarkEvent(start_time=140.0, end_time=170.0, confidence=0.9, intensity=0.6),
-                BarkEvent(start_time=175.0, end_time=205.0, confidence=0.7, intensity=0.4),
-                BarkEvent(start_time=210.0, end_time=240.0, confidence=0.8, intensity=0.5),
-                BarkEvent(start_time=245.0, end_time=275.0, confidence=0.9, intensity=0.6),
-                BarkEvent(start_time=280.0, end_time=310.0, confidence=0.7, intensity=0.4),
-                BarkEvent(start_time=315.0, end_time=345.0, confidence=0.8, intensity=0.5),
-            ]
-
-            # Add required attributes
-            for event in mock_bark_events:
-                event.triggering_classes = ["Bark"]
+            mock_bark_events = create_continuous_bark_events(total_minutes=6.0, gap_seconds=8.0)
 
             # Mock the detector's detection method
             mock_detector._detect_barks_in_buffer_with_sensitivity.return_value = mock_bark_events
