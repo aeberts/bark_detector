@@ -403,8 +403,8 @@ class TestLegalViolationTracker:
         mock_librosa.load.return_value = (np.array([0.1, 0.2, 0.3] * 1000), 16000)
 
         bark_events = [
-            BarkEvent(start_time=1.0, end_time=2.0, confidence=0.8, intensity=0.5),
-            BarkEvent(start_time=5.0, end_time=6.0, confidence=0.7, intensity=0.4)
+            BarkEvent(start_time=1.0, end_time=181.0, confidence=0.8, intensity=0.5),  # 3 minutes
+            BarkEvent(start_time=185.0, end_time=365.0, confidence=0.7, intensity=0.4)  # 3 minutes, 4s gap
         ]
         bark_events[0].triggering_classes = ["Bark"]
         bark_events[1].triggering_classes = ["Yip"]
@@ -658,3 +658,194 @@ class TestLegalViolationTracker:
         # Should detect violation from longer analysis
         assert len(violations) == 1
         assert violations[0].violation_type == "Constant"
+
+    # New Tests for Direct Event Analysis (Story 1.8)
+
+    def test_group_events_by_gaps(self):
+        """Test the _group_events_by_gaps utility method."""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create test events with different gaps
+        events = [
+            type('BarkEvent', (), {'start_time': 0.0, 'end_time': 1.0})(),    # Group 1
+            type('BarkEvent', (), {'start_time': 2.0, 'end_time': 3.0})(),    # Group 1 (2s gap)
+            type('BarkEvent', (), {'start_time': 65.0, 'end_time': 66.0})(),  # Group 2 (62s gap)
+            type('BarkEvent', (), {'start_time': 67.0, 'end_time': 68.0})(),  # Group 2 (1s gap)
+        ]
+
+        # Test with 60s gap threshold
+        groups = tracker._group_events_by_gaps(events, 60.0)
+
+        assert len(groups) == 2
+        assert len(groups[0]) == 2  # First two events
+        assert len(groups[1]) == 2  # Last two events
+
+        # Test with larger gap threshold
+        groups = tracker._group_events_by_gaps(events, 70.0)
+        assert len(groups) == 1  # All events in one group
+
+        # Test with small gap threshold
+        groups = tracker._group_events_by_gaps(events, 1.0)
+        assert len(groups) == 2  # Events 1,2 in group 1, events 3,4 in group 2
+
+    def test_analyze_continuous_violations_from_events(self):
+        """Test direct continuous violation analysis from events."""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create events for a 6-minute continuous violation (gaps ≤60s)
+        events = []
+        current_time = 0.0
+        for i in range(12):  # 12 events of 30s each = 6 minutes total
+            events.append(type('BarkEvent', (), {
+                'start_time': current_time,
+                'end_time': current_time + 30.0,
+                'confidence': 0.8
+            })())
+            current_time += 35.0  # 35s gap = 5s between events (≤60s)
+
+        violations = tracker._analyze_continuous_violations_from_events(events)
+
+        assert len(violations) == 1
+        assert violations[0].violation_type == "Constant"
+        assert violations[0].total_bark_duration >= 300  # ≥5 minutes
+
+        # Test with short events (should not trigger)
+        short_events = [
+            type('BarkEvent', (), {'start_time': 0.0, 'end_time': 10.0, 'confidence': 0.8})(),
+            type('BarkEvent', (), {'start_time': 20.0, 'end_time': 30.0, 'confidence': 0.8})(),
+        ]
+
+        violations = tracker._analyze_continuous_violations_from_events(short_events)
+        assert len(violations) == 0
+
+    def test_analyze_sporadic_violations_from_events(self):
+        """Test direct sporadic violation analysis from events."""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create events for 16-minute sporadic violation (gaps ≤5min)
+        events = []
+        current_time = 0.0
+        for i in range(8):  # 8 events of 2 minutes each = 16 minutes total
+            events.append(type('BarkEvent', (), {
+                'start_time': current_time,
+                'end_time': current_time + 120.0,  # 2 minutes
+                'confidence': 0.8
+            })())
+            current_time += 240.0  # 4-minute gaps (≤5min)
+
+        violations = tracker._analyze_sporadic_violations_from_events(events)
+
+        assert len(violations) == 1
+        assert violations[0].violation_type == "Intermittent"
+        assert violations[0].total_bark_duration >= 900  # ≥15 minutes
+
+        # Test with events separated by large gaps (should not trigger)
+        separated_events = [
+            type('BarkEvent', (), {'start_time': 0.0, 'end_time': 300.0, 'confidence': 0.8})(),    # 5 min
+            type('BarkEvent', (), {'start_time': 700.0, 'end_time': 1000.0, 'confidence': 0.8})(), # 5 min, 7min gap
+        ]
+
+        violations = tracker._analyze_sporadic_violations_from_events(separated_events, 300.0)
+        assert len(violations) == 0  # 7-minute gap exceeds 5-minute threshold
+
+    def test_convert_to_absolute_timestamps(self):
+        """Test conversion of PersistedBarkEvent to absolute timestamps."""
+        tracker = LegalViolationTracker(interactive=False)
+
+        # Create test PersistedBarkEvent objects
+        persisted_events = [
+            PersistedBarkEvent(
+                realworld_date="2025-08-18",
+                realworld_time="08:19:58",
+                bark_id="test-1",
+                bark_type="Bark",
+                est_dog_size=None,
+                audio_file_name="bark_recording_20250818_081958.wav",
+                bark_audiofile_timestamp="00:00:15.500",  # 15.5 seconds into file
+                confidence=0.8,
+                intensity=0.5
+            ),
+            PersistedBarkEvent(
+                realworld_date="2025-08-18",
+                realworld_time="08:22:03",
+                bark_id="test-2",
+                bark_type="Yip",
+                est_dog_size=None,
+                audio_file_name="bark_recording_20250818_081958.wav",
+                bark_audiofile_timestamp="00:02:05.000",  # 125 seconds into file
+                confidence=0.9,
+                intensity=0.6
+            )
+        ]
+
+        absolute_events = tracker._convert_to_absolute_timestamps(persisted_events)
+
+        assert len(absolute_events) == 2
+
+        # Events should have absolute timestamps (seconds since epoch)
+        for event in absolute_events:
+            assert hasattr(event, 'start_time')
+            assert hasattr(event, 'end_time')
+            assert hasattr(event, 'confidence')
+            assert event.start_time > 1693000000  # Reasonable timestamp (after 2023)
+            assert event.end_time > event.start_time
+
+        # Events should be ordered by absolute time
+        assert absolute_events[0].start_time < absolute_events[1].start_time
+
+    def test_hybrid_architecture_analysis(self):
+        """Test that the hybrid approach (sessions + direct events) works correctly."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            violations_dir = Path(temp_dir) / 'violations'
+            db = ViolationDatabase(violations_dir=violations_dir)
+            tracker = LegalViolationTracker(violation_db=db)
+
+            # Mock detector with dual sensitivity
+            mock_detector = Mock()
+            mock_detector.sample_rate = 16000
+            mock_detector.session_gap_threshold = 10.0
+            mock_detector.analysis_sensitivity = 0.3
+
+            # Mock bark events for violation analysis
+            mock_bark_events = [
+                BarkEvent(start_time=0.0, end_time=30.0, confidence=0.8, intensity=0.5),
+                BarkEvent(start_time=35.0, end_time=65.0, confidence=0.9, intensity=0.6),
+                BarkEvent(start_time=70.0, end_time=100.0, confidence=0.7, intensity=0.4),
+                BarkEvent(start_time=105.0, end_time=135.0, confidence=0.8, intensity=0.5),
+                BarkEvent(start_time=140.0, end_time=170.0, confidence=0.9, intensity=0.6),
+                BarkEvent(start_time=175.0, end_time=205.0, confidence=0.7, intensity=0.4),
+                BarkEvent(start_time=210.0, end_time=240.0, confidence=0.8, intensity=0.5),
+                BarkEvent(start_time=245.0, end_time=275.0, confidence=0.9, intensity=0.6),
+                BarkEvent(start_time=280.0, end_time=310.0, confidence=0.7, intensity=0.4),
+                BarkEvent(start_time=315.0, end_time=345.0, confidence=0.8, intensity=0.5),
+            ]
+
+            # Add required attributes
+            for event in mock_bark_events:
+                event.triggering_classes = ["Bark"]
+
+            # Mock the detector's detection method
+            mock_detector._detect_barks_in_buffer_with_sensitivity.return_value = mock_bark_events
+
+            # Create test audio file
+            date_folder = Path(temp_dir) / "2025-08-18"
+            date_folder.mkdir()
+            test_file = date_folder / "bark_recording_20250818_081958.wav"
+            test_file.touch()
+
+            # Mock librosa.load
+            with patch('librosa.load') as mock_librosa_load:
+                mock_librosa_load.return_value = (np.random.rand(5760000), 16000)
+
+                # Run hybrid analysis
+                violations = tracker.analyze_recordings_for_date(Path(temp_dir), "2025-08-18", mock_detector)
+
+                # Should detect violations using direct event analysis
+                assert len(violations) >= 1
+
+                # Verify violations have proper structure
+                for violation in violations:
+                    assert hasattr(violation, 'violation_type')
+                    assert hasattr(violation, 'total_bark_duration')
+                    assert violation.violation_type in ["Constant", "Intermittent"]
+                    assert violation.date == "2025-08-18"
