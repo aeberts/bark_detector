@@ -55,12 +55,14 @@
   },
   
   "legal": {
-    "_comment": "Legal violation detection thresholds",
-    "continuous_threshold": 300,
-    "_continuous_threshold_help": "Continuous barking threshold in seconds (City of Kelowna: 5min = 300s)",
-    "sporadic_threshold": 900,
-    "_sporadic_threshold_help": "Sporadic barking threshold in seconds (City of Kelowna: 15min = 900s)",
-    "sporadic_gap_threshold": 300,
-    "_sporadic_gap_threshold_help": "Gap threshold for sporadic detection in seconds (5min = 300s)"
+    "_comment": "Legal violation detection thresholds - configurable for different municipal bylaws",
+    "constant_violation_duration": 300,
+    "_constant_violation_duration_help": "Constant violation duration threshold in seconds - minimum duration for constant violation (City of Kelowna: 5min = 300s, range: 60-1800s)",
+    "intermittent_violation_duration": 900,
+    "_intermittent_violation_duration_help": "Intermittent barking violation duration threshold in seconds - minimum total duration for intermittent violation (City of Kelowna: 15min = 900s, range: 300-7200s)",
+    "intermittent_gap_threshold": 300,
+    "_intermittent_gap_threshold_help": "Gap threshold for intermittent detection in seconds - maximum gap between bark sessions for grouping (5min = 300s, range: 30-1800s)",
+    "constant_gap_threshold": 10.0,
+    "_constant_gap_threshold_help": "Gap threshold for constant violations in seconds - maximum gap between barks that invalidates constant violation (10s default, range: 1-60s)"
   }
 }

@@ -119,8 +119,8 @@ The detector will:
 Default settings in `bd.py`:
 - **Sensitivity**: 0.05 (lower = more sensitive)
 - **Sample Rate**: 16kHz (YAMNet requirement)
-- **Quiet Duration**: 30 seconds before stopping recording
-- **Session Gap**: 10 seconds to group barks into sessions
+- **Quiet Duration**: 35 seconds before stopping recording
+- **Session Gap**: 30 seconds to group barks into sessions
 
 ## Calibration
 

@@ -73,6 +73,31 @@ class TestCalibrationConfig:
         assert config.sensitivity_range == [0.01, 0.5]
 
 
+class TestLegalConfig:
+    """Test legal configuration data class."""
+
+    def test_default_values(self):
+        """Test default legal configuration values."""
+        config = LegalConfig()
+        assert config.constant_violation_duration == 300  # 5 minutes
+        assert config.intermittent_violation_duration == 900    # 15 minutes
+        assert config.intermittent_gap_threshold == 300  # 5 minutes
+        assert config.constant_gap_threshold == 10.0  # 10 seconds
+
+    def test_custom_values(self):
+        """Test custom legal configuration values."""
+        config = LegalConfig(
+            constant_violation_duration=600,  # 10 minutes
+            intermittent_violation_duration=1200,   # 20 minutes
+            intermittent_gap_threshold=180,  # 3 minutes
+            constant_gap_threshold=15.0  # 15 seconds
+        )
+        assert config.constant_violation_duration == 600
+        assert config.intermittent_violation_duration == 1200
+        assert config.intermittent_gap_threshold == 180
+        assert config.constant_gap_threshold == 15.0
+
+
 class TestBarkDetectorConfig:
     """Test main configuration container."""
     
@@ -363,6 +388,54 @@ class TestConfigManager:
         assert merged.detection.sensitivity == 0.68  # Unchanged
         assert merged.detection.analysis_sensitivity == 0.20  # From CLI
 
+    def test_legal_config_validation_valid_values(self):
+        """Test legal configuration validation with valid values."""
+        config_data = {
+            "legal": {
+                "constant_violation_duration": 600,    # 10 minutes (valid range: 60-1800)
+                "intermittent_violation_duration": 1200,     # 20 minutes (valid range: 300-7200)
+                "intermittent_gap_threshold": 180   # 3 minutes (valid range: 30-1800)
+            }
+        }
+        config_json = json.dumps(config_data)
+
+        with patch.object(Path, 'exists', return_value=True), \
+             patch("builtins.open", mock_open(read_data=config_json)):
+            config = self.config_manager.load_config("test.json")
+            assert config.legal.constant_violation_duration == 600
+            assert config.legal.intermittent_violation_duration == 1200
+            assert config.legal.intermittent_gap_threshold == 180
+
+    def test_legal_config_validation_invalid_values(self):
+        """Test legal configuration validation with invalid values."""
+        # Test constant_violation_duration too low
+        config_data = {"legal": {"constant_violation_duration": 30}}  # Below min of 60
+        config_json = json.dumps(config_data)
+
+        with patch.object(Path, 'exists', return_value=True), \
+             patch("builtins.open", mock_open(read_data=config_json)):
+            with pytest.raises(RuntimeError, match="constant_violation_duration.*must be between 60 and 1800"):
+                self.config_manager.load_config("test.json")
+
+        # Test intermittent_violation_duration too high
+        config_data = {"legal": {"intermittent_violation_duration": 8000}}  # Above max of 7200
+        config_json = json.dumps(config_data)
+
+        with patch.object(Path, 'exists', return_value=True), \
+             patch("builtins.open", mock_open(read_data=config_json)):
+            with pytest.raises(RuntimeError, match="intermittent_violation_duration.*must be between 300 and 7200"):
+                self.config_manager.load_config("test.json")
+
+    def test_legal_config_validation_non_numeric_values(self):
+        """Test legal configuration validation with non-numeric values."""
+        config_data = {"legal": {"constant_violation_duration": "not_a_number"}}
+        config_json = json.dumps(config_data)
+
+        with patch.object(Path, 'exists', return_value=True), \
+             patch("builtins.open", mock_open(read_data=config_json)):
+            with pytest.raises(RuntimeError, match="constant_violation_duration.*must be a number"):
+                self.config_manager.load_config("test.json")
+
 
 class TestConfigIntegration:
     """Integration tests for configuration system."""
@@ -376,7 +449,7 @@ class TestConfigIntegration:
         original_config = BarkDetectorConfig()
         original_config.detection.sensitivity = 0.75
         original_config.output.recordings_dir = "custom_recordings"
-        original_config.legal.continuous_threshold = 420  # 7 minutes
+        original_config.legal.constant_violation_duration = 420  # 7 minutes
         
         # Save and reload
         config_manager.save_config(original_config, config_file)
@@ -385,7 +458,7 @@ class TestConfigIntegration:
         # Verify all values preserved
         assert loaded_config.detection.sensitivity == 0.75
         assert loaded_config.output.recordings_dir == "custom_recordings"
-        assert loaded_config.legal.continuous_threshold == 420
+        assert loaded_config.legal.constant_violation_duration == 420
         
         # Verify defaults for unmodified fields
         assert loaded_config.detection.sample_rate == 16000

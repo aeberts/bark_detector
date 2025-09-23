@@ -2,6 +2,6 @@
 
 from .tracker import LegalViolationTracker
 from .database import ViolationDatabase
-from .models import LegalSporadicSession, ViolationReport
+from .models import LegalIntermittentSession, ViolationReport
 
-__all__ = ['LegalViolationTracker', 'ViolationDatabase', 'LegalSporadicSession', 'ViolationReport']
+__all__ = ['LegalViolationTracker', 'ViolationDatabase', 'LegalIntermittentSession', 'ViolationReport']

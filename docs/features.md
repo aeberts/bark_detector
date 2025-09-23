@@ -148,16 +148,23 @@
 - Flag incidents that can be used as legal evidence with confidence scoring
 - Analyze all audio recordings in the recordings folder for a given day for potential violations
 - Create comprehensive violation reports for each violation identified with detailed metadata
+- Configure violation thresholds to meet different municipal bylaw requirements without code changes
 ### Specifications
-- **Status**: Fully implemented with advanced YAMNet ML integration
+- **Status**: Fully implemented with advanced YAMNet ML integration and configurable thresholds
 - **ML-Based Analysis**: Uses advanced YAMNet bark detection to analyze actual audio content rather than simple file duration checks. Provides accurate bark event detection with confidence scores and detailed session analysis.
-- **Continuous/Constant Violation Detection**: 
-  - Detects individual BarkingSessions with total_duration ≥ 5 minutes (300 seconds) of actual barking
+- **Configurable Violation Thresholds**: All violation detection thresholds are configurable via config.json for different municipal bylaw requirements:
+  - `constant_violation_duration`: Minimum duration for constant violations (default: 300s/5min, range: 60-1800s)
+  - `sporadic_threshold`: Minimum total duration for intermittent violations (default: 900s/15min, range: 300-7200s)
+  - `sporadic_gap_threshold`: Maximum gap between sessions for sporadic grouping (default: 300s/5min, range: 30-1800s)
+  - `constant_gap_threshold`: Gap threshold for invalidating constant violations (default: 10.0s, range: 1-60s)
+  - `session_gap_threshold`: Gap threshold for recording session separation (default: 10.0s, range: 1-60s)
+- **Continuous/Constant Violation Detection**:
+  - Detects individual BarkingSessions with total_duration ≥ configured constant_violation_duration of actual barking
   - Uses YAMNet ML model to identify real bark events within sessions
   - Classification: Reports as "Constant" violation type with confidence metrics
-- **Sporadic/Intermittent Violation Detection**: 
-  - Groups BarkingSessions into Legal Sporadic Sessions using 5-minute gap threshold
-  - Detects Legal Sporadic Sessions with ≥15 minutes (900 seconds) total barking duration  
+- **Sporadic/Intermittent Violation Detection**:
+  - Groups BarkingSessions into Legal Sporadic Sessions using configurable sporadic_gap_threshold
+  - Detects Legal Sporadic Sessions with ≥ configured sporadic_threshold total barking duration
   - Uses Gap Threshold Hierarchy rules defined in project_overview.md
   - Classification: Reports as "Intermittent" violation type with session grouping details
 - **Advanced Post-processing Analysis**: 

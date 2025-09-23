@@ -239,3 +239,5 @@ function findSporadicViolations(barkEvents):
 -   **State Management:** The provided pseudocode is a pure function approach. For a large number of events, a class-based or stateful iterator approach could be more memory-efficient, but this logic remains the same.
 -   **Violation Updates:** Implementations must handle updating violation records as sessions continue beyond the initial trigger point to ensure accurate `endTimestamp` and complete `barkEventIds` arrays.
 -   **Data Type Consistency:** Ensure `barkEventIds` is implemented as a proper array/list structure in the target language, not a concatenated string.
+
+**Note (2025-09-17 analysis):** Real-world persisted bark events show 90th-percentile inter-bark gaps around 18–33 seconds. To keep constant violations (≥5 minutes) detectable while remaining below the 60-second ceiling, plan to raise the continuous gap threshold from 10 seconds to roughly 33 seconds (or make it configurable in that range).

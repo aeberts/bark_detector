@@ -150,9 +150,10 @@ def main():
         'quiet_duration': config.detection.quiet_duration,
         'session_gap_threshold': config.detection.session_gap_threshold,
         'output_dir': config.output.recordings_dir,
-        'profile_name': args.save_profile
+        'profile_name': args.save_profile,
+        'config': config
     }
-    
+
     try:
         detector = AdvancedBarkDetector(**detector_config)
         

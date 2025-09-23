@@ -11,7 +11,7 @@ This project aims to develop a "bark detector" which will identify the sound of 
 
 ## Primary Goal
 
-The goal of this project is to be able to have enough evidence of barking that we can make a formal complaint to the City of Kelowna.
+The goal of this project is to be able to have enough evidence of barking that we can make a formal complaint to the Regional District of Central Okanagan (RDCO) and the City of Kelowna (COK).
 
 ## Legal Evidence Requirements Analysis
 
@@ -26,7 +26,7 @@ Note: The Regional District of Central Okanagan (RDCO) issue reporting site uses
 
 ### Specific Violations We Target
 
-1. **Continuous Barking**: 5+ minutes of non-stop barking with no quiet intervals greater than 10 seconds.
+1. **Continuous Barking**: 5+ minutes of non-stop barking with no quiet intervals greater than 30 seconds (configurable).
 2. **Sporadic Barking**: 15+ minutes total within a time window with no quiet periods greater than 5 minutes.
 3. **Disturbance**: Any pattern that's clearly disruptive.
 

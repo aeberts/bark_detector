@@ -54,9 +54,10 @@ class SchedulingConfig:
 @dataclass
 class LegalConfig:
     """Legal violation detection configuration."""
-    continuous_threshold: int = 300  # 5 minutes in seconds
-    sporadic_threshold: int = 900    # 15 minutes in seconds  
-    sporadic_gap_threshold: int = 300  # 5 minutes in seconds
+    constant_violation_duration: int = 300  # 5 minutes in seconds
+    intermittent_violation_duration: int = 900    # 15 minutes in seconds
+    intermittent_gap_threshold: int = 300  # 5 minutes in seconds
+    constant_gap_threshold: float = 10.0  # 10 seconds - gap that invalidates constant violations
 
 
 @dataclass
@@ -187,9 +188,10 @@ class ConfigManager:
         if 'legal' in data:
             legal_data = data['legal']
             config.legal = LegalConfig(
-                continuous_threshold=legal_data.get('continuous_threshold', 300),
-                sporadic_threshold=legal_data.get('sporadic_threshold', 900),
-                sporadic_gap_threshold=legal_data.get('sporadic_gap_threshold', 300)
+                constant_violation_duration=self._validate_int(legal_data.get('constant_violation_duration', 300), 60, 1800, 'constant_violation_duration'),
+                intermittent_violation_duration=self._validate_int(legal_data.get('intermittent_violation_duration', legal_data.get('sporadic_threshold', 900)), 300, 7200, 'intermittent_violation_duration'),
+                intermittent_gap_threshold=self._validate_int(legal_data.get('intermittent_gap_threshold', legal_data.get('sporadic_gap_threshold', 300)), 30, 1800, 'intermittent_gap_threshold'),
+                constant_gap_threshold=self._validate_float(legal_data.get('constant_gap_threshold', 10.0), 1.0, 60.0, 'constant_gap_threshold')
             )
         
         return config
@@ -198,11 +200,21 @@ class ConfigManager:
         """Validate float parameter is within range."""
         if not isinstance(value, (int, float)):
             raise ValueError(f"Configuration parameter '{name}' must be a number, got {type(value).__name__}")
-        
+
         if not (min_val <= value <= max_val):
             raise ValueError(f"Configuration parameter '{name}' must be between {min_val} and {max_val}, got {value}")
-        
+
         return float(value)
+
+    def _validate_int(self, value: int, min_val: int, max_val: int, name: str) -> int:
+        """Validate integer parameter is within range."""
+        if not isinstance(value, (int, float)):
+            raise ValueError(f"Configuration parameter '{name}' must be a number, got {type(value).__name__}")
+
+        if not (min_val <= value <= max_val):
+            raise ValueError(f"Configuration parameter '{name}' must be between {min_val} and {max_val}, got {value}")
+
+        return int(value)
     
     def save_config(self, config: BarkDetectorConfig, config_path: Union[str, Path]):
         """Save configuration to file."""

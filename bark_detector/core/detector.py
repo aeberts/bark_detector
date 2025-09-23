@@ -26,6 +26,7 @@ configure_tensorflow_after_import()
 from .models import BarkEvent, BarkingSession
 from ..utils.helpers import convert_numpy_types
 from ..legal.tracker import LegalViolationTracker
+from ..utils.config import BarkDetectorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,8 @@ class AdvancedBarkDetector:
                  quiet_duration: float = 30.0,
                  session_gap_threshold: float = 10.0,
                  output_dir: str = "recordings",
-                 profile_name: str = None):
+                 profile_name: str = None,
+                 config: Optional[BarkDetectorConfig] = None):
         """Initialize the advanced bark detector."""
         self.sensitivity = sensitivity
         self.analysis_sensitivity = analysis_sensitivity
@@ -91,7 +93,7 @@ class AdvancedBarkDetector:
         
         # Violation detection system (use project-local violations/ directory)
         violations_dir = Path('violations')
-        self.violation_tracker = LegalViolationTracker(violations_dir=violations_dir, interactive=True)  # Interactive by default for CLI usage
+        self.violation_tracker = LegalViolationTracker(violations_dir=violations_dir, interactive=True, config=config)  # Interactive by default for CLI usage
         self.enable_real_time_violations = False  # Can be enabled for real-time violation detection
         
         # Create output directory

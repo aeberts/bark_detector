@@ -4,20 +4,34 @@
 schema: 1
 story: "1.9"
 story_title: "Fix Violation Detection Algorithm Bug"
-gate: PASS
-status_reason: "Comprehensive story with excellent requirements traceability, strong architecture foundation, and thorough test strategy addressing critical legal compliance bug."
+gate: CONCERNS
+status_reason: "Persisted-event workflow is functional, but violation reports include duplicate audio paths and the new fallback path lacks automated regression coverage."
 reviewer: "Quinn (Test Architect & Quality Advisor)"
-updated: "2025-09-21T18:00:00Z"
+updated: "2025-09-22T08:45:00Z"
 
 # Waiver - not active for PASS gate
 waiver: { active: false }
 
-# No blocking issues found
-top_issues: []
+# Issues raised during latest QA review
+top_issues:
+  - id: QA-1
+    title: "Duplicate audio paths in violation evidence"
+    severity: medium
+    description: "_infer_recording_paths_from_events adds both fully-qualified and bare filenames when the same recording is referenced repeatedly, cluttering legal evidence output (bark_detector/legal/tracker.py:333)."
+    suggested_owner: dev
+    refs:
+      - bark_detector/legal/tracker.py:333
+  - id: QA-2
+    title: "Missing automated regression for events-only analysis path"
+    severity: medium
+    description: "The persisted-events fallback is validated manually but lacks a dedicated integration test in tests/test_legal/test_violation_tracker.py, leaving the regression hardening unprotected."
+    suggested_owner: dev
+    refs:
+      - tests/test_legal/test_violation_tracker.py
 
 # Risk assessment summary
 risk_summary:
-  totals: { critical: 0, high: 1, medium: 2, low: 3 }
+  totals: { critical: 0, high: 1, medium: 3, low: 3 }
   highest: high
   recommendations:
     must_fix: []
@@ -26,12 +40,12 @@ risk_summary:
       - "Session continuation logic complexity"
 
 # Quality assessment details
-quality_score: 88
-expires: "2025-10-05T18:00:00Z"
+quality_score: 80
+expires: "2025-10-06T08:45:00Z"
 
 evidence:
-  tests_reviewed: 7
-  risks_identified: 6
+  tests_reviewed: 86
+  risks_identified: 7
   trace:
     ac_covered: [1, 2, 3, 4, 5, 6]
     ac_gaps: []
@@ -47,11 +61,13 @@ nfr_validation:
     status: PASS
     notes: "Comprehensive error handling and edge case testing planned"
   maintainability:
-    status: PASS
-    notes: "Clear architecture separation, well-documented specifications"
+    status: CONCERNS
+    notes: "Need to deduplicate inferred audio paths and add regression coverage for events-only workflow"
 
 recommendations:
-  immediate: []
+  immediate:
+    - action: "Deduplicate recording path inference so violation reports list each source file once"
+      refs: ["bark_detector/legal/tracker.py:333"]
   future:
     - action: "Add performance benchmarks for large datasets"
       refs: ["T1.9.6", "T1.9.7"]
@@ -59,6 +75,8 @@ recommendations:
       refs: ["Testing section"]
     - action: "Define error handling for corrupted data scenarios"
       refs: ["Dev Notes"]
+    - action: "Add automated test covering persisted-events analysis without audio files"
+      refs: ["tests/test_legal/test_violation_tracker.py"]
 
 # Quality assessment details
 assessment:
@@ -102,6 +120,12 @@ risks:
       description: "Enhanced violation structure with three timestamps"
       impact: "Integration complexity with existing systems"
       mitigation: "Incremental implementation and comprehensive integration testing"
+
+    - id: "QA-REG-001"
+      area: "Test Coverage"
+      description: "Events-only analysis path currently validated manually"
+      impact: "Future refactors could silently break the regression hardening"
+      mitigation: "Add integration test invoking analyze_recordings_for_date with persisted events only"
 
   low:
     - id: "PERF-001"

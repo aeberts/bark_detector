@@ -25,8 +25,8 @@ class AlgorithmInputEvent:
 
 
 @dataclass
-class LegalSporadicSession:
-    """Represents a legal sporadic session for bylaw violation detection."""
+class LegalIntermittentSession:
+    """Represents a legal intermittent session for bylaw violation detection."""
     start_time: float
     end_time: float
     barking_sessions: List[BarkingSession]
@@ -71,7 +71,7 @@ class PersistedBarkEvent:
 @dataclass
 class Violation:
     """Enhanced violation model with three-timestamp architecture for legal compliance."""
-    type: str  # "Continuous" or "Sporadic"
+    type: str  # "Continuous" or "Intermittent"
     startTimestamp: str  # ISO 8601 - when barking incident began (legal compliance)
     violationTriggerTimestamp: str  # ISO 8601 - when violation was detected (system audit)
     endTimestamp: str  # ISO 8601 - when barking incident actually ended (legal compliance)

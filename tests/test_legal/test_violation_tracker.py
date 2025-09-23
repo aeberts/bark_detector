@@ -721,7 +721,7 @@ class TestLegalViolationTracker:
                 startTimestamp=event_time.isoformat() + ".000Z"
             ))
 
-        violations = tracker._analyze_continuous_violations_from_events(events)
+        violations = tracker._analyze_constant_violations_from_events(events)
 
         assert len(violations) == 1
         assert violations[0].type == "Continuous"
@@ -736,7 +736,7 @@ class TestLegalViolationTracker:
                 startTimestamp=event_time.isoformat() + ".000Z"
             ))
 
-        violations = tracker._analyze_continuous_violations_from_events(short_events)
+        violations = tracker._analyze_constant_violations_from_events(short_events)
         assert len(violations) == 0
 
         # Test with gaps too large (should not trigger violation)
@@ -748,14 +748,14 @@ class TestLegalViolationTracker:
                 startTimestamp=event_time.isoformat() + ".000Z"
             ))
 
-        violations = tracker._analyze_continuous_violations_from_events(gap_events)
+        violations = tracker._analyze_constant_violations_from_events(gap_events)
         assert len(violations) == 0
 
-    def test_analyze_sporadic_violations_from_events(self):
-        """Test direct sporadic violation analysis from AlgorithmInputEvent objects."""
+    def test_analyze_intermittent_violations_from_events(self):
+        """Test direct intermittent violation analysis from AlgorithmInputEvent objects."""
         tracker = LegalViolationTracker(interactive=False)
 
-        # Create AlgorithmInputEvent objects for 16-minute sporadic violation (gaps ≤5min)
+        # Create AlgorithmInputEvent objects for 16-minute intermittent violation (gaps ≤5min)
         # Based on algorithm spec: 5-minute max gap, 15-minute minimum session
         events = []
         base_datetime = datetime(2025, 9, 21, 10, 0, 0)
@@ -764,14 +764,14 @@ class TestLegalViolationTracker:
         for i in range(5):  # 5 events over 16 minutes = 15+ minutes duration
             event_time = base_datetime + timedelta(minutes=i * 4)
             events.append(AlgorithmInputEvent(
-                id=f"sporadic-{i:03d}",
+                id=f"intermittent-{i:03d}",
                 startTimestamp=event_time.isoformat() + ".000Z"
             ))
 
-        violations = tracker._analyze_sporadic_violations_from_events(events)
+        violations = tracker._analyze_intermittent_violations_from_events(events)
 
         assert len(violations) == 1
-        assert violations[0].type == "Sporadic"
+        assert violations[0].type == "Intermittent"
         assert violations[0].durationMinutes >= 15.0  # ≥15 minutes
 
         # Test with short duration (should not trigger violation)
@@ -779,11 +779,11 @@ class TestLegalViolationTracker:
         for i in range(3):  # 3 events over 8 minutes = <15 minutes
             event_time = base_datetime + timedelta(minutes=i * 4)
             short_events.append(AlgorithmInputEvent(
-                id=f"short-sporadic-{i:03d}",
+                id=f"short-intermittent-{i:03d}",
                 startTimestamp=event_time.isoformat() + ".000Z"
             ))
 
-        violations = tracker._analyze_sporadic_violations_from_events(short_events)
+        violations = tracker._analyze_intermittent_violations_from_events(short_events)
         assert len(violations) == 0
 
         # Test with gaps too large (should not trigger violation)
@@ -791,11 +791,11 @@ class TestLegalViolationTracker:
         for i in range(5):  # Events with 6-minute gaps (>5 minute threshold)
             event_time = base_datetime + timedelta(minutes=i * 6)
             gap_events.append(AlgorithmInputEvent(
-                id=f"gap-sporadic-{i:03d}",
+                id=f"gap-intermittent-{i:03d}",
                 startTimestamp=event_time.isoformat() + ".000Z"
             ))
 
-        violations = tracker._analyze_sporadic_violations_from_events(gap_events)
+        violations = tracker._analyze_intermittent_violations_from_events(gap_events)
         assert len(violations) == 0
 
     def test_convert_to_algorithm_input_events(self):

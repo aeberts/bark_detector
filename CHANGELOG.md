@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2025-09-23
+
+### Major Features
+- **Story 2.2: Configurable Violation Thresholds**: Implemented comprehensive configuration system for all violation detection thresholds, replacing hardcoded values with user-configurable parameters. Added support for configuring constant violation duration (5min default), sporadic barking threshold (15min default), sporadic gap threshold (5min default), constant gap threshold for legal analysis (10s default), and recording session gap threshold (10s default) via config.json file. Enhanced LegalConfig data model with validation methods ensuring threshold values are within reasonable ranges (60-1800s for duration thresholds, 30-1800s for sporadic gaps, 1-60s for gap thresholds). Updated LegalViolationTracker to accept configuration parameters with proper separation between recording gaps (`detection.session_gap_threshold`) and legal analysis gaps (`legal.constant_gap_threshold`). Renamed `continuous_threshold` to `constant_violation_duration` to match RDCO complaint form terminology (Constant/Intermittent). Modified CLI integration to pass configuration to violation detection components ensuring all commands (--analyze-violations, --violation-report) use configured thresholds. Added comprehensive test coverage (6 new test methods) validating configuration application, validation ranges, backward compatibility, and CLI integration. Updated configuration files (config.json, config-example.json) with detailed help text and examples for different municipal bylaw requirements. Enables users to adapt system to various jurisdictional requirements without code changes while maintaining City of Kelowna defaults.
+
 ## 2025-09-19
 
 ### Story Development and Quality Assurance

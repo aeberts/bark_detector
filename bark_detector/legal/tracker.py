@@ -6,10 +6,11 @@ import librosa
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
-from .models import ViolationReport, LegalSporadicSession, PersistedBarkEvent, Violation, AlgorithmInputEvent
+from .models import ViolationReport, LegalIntermittentSession, PersistedBarkEvent, Violation, AlgorithmInputEvent
 from .database import ViolationDatabase
 from ..core.models import BarkingSession
 from ..utils.time_utils import parse_audio_filename_timestamp
+from ..utils.config import BarkDetectorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -17,24 +18,41 @@ logger = logging.getLogger(__name__)
 class LegalViolationTracker:
     """Track and analyze bark events for legal violation detection."""
     
-    def __init__(self, violation_db: Optional[ViolationDatabase] = None, violations_dir: Path = None, interactive: bool = True):
+    def __init__(self, violation_db: Optional[ViolationDatabase] = None, violations_dir: Path = None,
+                 interactive: bool = True, config: Optional[BarkDetectorConfig] = None):
         """Initialize the legal violation tracker.
-        
+
         Args:
             violation_db: ViolationDatabase instance for persistence (overrides violations_dir)
             violations_dir: Directory for date-organized violations (defaults to 'violations/')
             interactive: Whether to prompt user for duplicate handling (False for testing)
+            config: Configuration object containing legal thresholds (uses defaults if None)
         """
         self.violations = []
         self.sessions = []
-        
+
         if violation_db is not None:
             self.violation_db = violation_db
         else:
             # Create new ViolationDatabase with project-local violations directory
             self.violation_db = ViolationDatabase(violations_dir=violations_dir)
-        
+
         self.interactive = interactive
+
+        # Set threshold parameters from config or use defaults
+        if config is not None:
+            self.constant_violation_duration = config.legal.constant_violation_duration
+            self.intermittent_threshold = config.legal.intermittent_violation_duration
+            self.intermittent_gap_threshold = config.legal.intermittent_gap_threshold
+            self.constant_gap_threshold = config.legal.constant_gap_threshold
+            self.session_gap_threshold = config.detection.session_gap_threshold
+        else:
+            # Default values (backward compatibility)
+            self.constant_violation_duration = 300  # 5 minutes
+            self.intermittent_threshold = 900    # 15 minutes
+            self.intermittent_gap_threshold = 300  # 5 minutes
+            self.constant_gap_threshold = 10.0  # 10 seconds - legal analysis gap
+            self.session_gap_threshold = 10.0  # 10 seconds - recording gap
 
     def _convert_to_algorithm_input_events(self, events: List[PersistedBarkEvent]) -> List[AlgorithmInputEvent]:
         """Convert PersistedBarkEvent objects to AlgorithmInputEvent format for violation processing.
@@ -70,14 +88,14 @@ class LegalViolationTracker:
         """Analyze barking sessions for legal violations."""
         violations = []
         
-        # Check for continuous violations (5+ minutes per session)
+        # Check for constant violations (5+ minutes per session)
         for session in sessions:
-            if session.total_duration >= 300:  # 5 minutes
+            if session.total_duration >= self.constant_violation_duration:
                 violations.append(self._create_violation_report(session, "Constant"))
         
-        # Check for sporadic violations (15+ minutes across multiple sessions within 5-minute gaps)
-        sporadic_violations = self._detect_sporadic_violations(sessions)
-        violations.extend(sporadic_violations)
+        # Check for intermittent violations (15+ minutes across multiple sessions within 5-minute gaps)
+        intermittent_violations = self._detect_intermittent_violations(sessions)
+        violations.extend(intermittent_violations)
         
         return violations
 
@@ -121,18 +139,21 @@ class LegalViolationTracker:
 
         return groups
 
-    def _analyze_continuous_violations_from_events(self, events: List[AlgorithmInputEvent], gap_threshold: float = 10.0) -> List[Violation]:
-        """Find continuous violations using start timestamp intervals per formal algorithm.
+    def _analyze_constant_violations_from_events(self, events: List[AlgorithmInputEvent], gap_threshold: float = None) -> List[Violation]:
+        """Find constant violations using start timestamp intervals per formal algorithm.
 
         Args:
             events: List of AlgorithmInputEvent objects sorted by startTimestamp
-            gap_threshold: Maximum gap in seconds between consecutive bark events (default: 10s)
+            gap_threshold: Maximum gap in seconds between consecutive bark events (uses config if None)
 
         Returns:
-            List of Violation objects for detected continuous violations
+            List of Violation objects for detected constant violations
         """
+        if gap_threshold is None:
+            gap_threshold = self.constant_gap_threshold
+
         violations = []
-        MIN_SESSION_MINUTES = 5  # 5 minutes minimum for continuous violation
+        MIN_SESSION_MINUTES = 5  # 5 minutes minimum for constant violation
 
         if len(events) < 2:
             return violations
@@ -189,18 +210,20 @@ class LegalViolationTracker:
 
         return violations
 
-    def _analyze_sporadic_violations_from_events(self, events: List[AlgorithmInputEvent], sporadic_gap_threshold: float = 300.0) -> List[Violation]:
-        """Find sporadic violations using start timestamp intervals per formal algorithm.
+    def _analyze_intermittent_violations_from_events(self, events: List[AlgorithmInputEvent], intermittent_gap_threshold: float = None) -> List[Violation]:
+        """Find intermittent violations using start timestamp intervals per formal algorithm.
 
         Args:
             events: List of AlgorithmInputEvent objects sorted by startTimestamp
-            sporadic_gap_threshold: Maximum gap in seconds between consecutive bark events (default: 300s = 5 minutes)
+            intermittent_gap_threshold: Maximum gap in seconds between consecutive bark events (uses config if None)
 
         Returns:
-            List of Violation objects for detected sporadic violations
+            List of Violation objects for detected intermittent violations
         """
+        if intermittent_gap_threshold is None:
+            intermittent_gap_threshold = self.intermittent_gap_threshold
         violations = []
-        MIN_SESSION_MINUTES = 15  # 15 minutes minimum for sporadic violation
+        MIN_SESSION_MINUTES = 15  # 15 minutes minimum for intermittent violation
 
         if len(events) < 2:
             return violations
@@ -218,7 +241,7 @@ class LegalViolationTracker:
             current_time = datetime.fromisoformat(current_event.startTimestamp.replace('Z', '+00:00'))
             gap_seconds = (current_time - previous_time).total_seconds()
 
-            if gap_seconds >= sporadic_gap_threshold:  # sporadic_gap_threshold is in seconds
+            if gap_seconds >= intermittent_gap_threshold:  # intermittent_gap_threshold is in seconds
                 # Gap too large, session is broken - reset start and clear violation tracking
                 session_start_index = i
                 current_session_violation = None
@@ -237,7 +260,7 @@ class LegalViolationTracker:
                 if current_session_violation is None:
                     # This is the first time this session becomes a violation - create new violation
                     violation = Violation(
-                        type="Sporadic",
+                        type="Intermittent",
                         startTimestamp=first_event.startTimestamp,
                         violationTriggerTimestamp=current_event.startTimestamp,
                         endTimestamp=current_event.startTimestamp,
@@ -529,14 +552,14 @@ class LegalViolationTracker:
         logger.info(f"Converting {len(all_bark_events)} persisted events to {len(algorithm_events)} algorithm input events")
 
         # Apply formal violation detection algorithms
-        print(f"DEBUG: Calling continuous violations analysis with {len(algorithm_events)} events")
-        continuous_violations = self._analyze_continuous_violations_from_events(algorithm_events)
-        print(f"DEBUG: Continuous violations found: {len(continuous_violations)}")
-        sporadic_violations = self._analyze_sporadic_violations_from_events(algorithm_events)
-        print(f"DEBUG: Sporadic violations found: {len(sporadic_violations)}")
+        print(f"DEBUG: Calling constant violations analysis with {len(algorithm_events)} events")
+        constant_violations = self._analyze_constant_violations_from_events(algorithm_events)
+        print(f"DEBUG: Constant violations found: {len(constant_violations)}")
+        intermittent_violations = self._analyze_intermittent_violations_from_events(algorithm_events)
+        print(f"DEBUG: Intermittent violations found: {len(intermittent_violations)}")
 
         # Combine all violations (now Violation objects from formal algorithm)
-        violations = continuous_violations + sporadic_violations
+        violations = constant_violations + intermittent_violations
 
         logger.info(f"Detected {len(violations)} violations for {target_date}")
         for i, violation in enumerate(violations, 1):
@@ -693,8 +716,8 @@ class LegalViolationTracker:
             created_timestamp=datetime.now().isoformat()
         )
     
-    def _detect_sporadic_violations(self, sessions: List[BarkingSession]) -> List[ViolationReport]:
-        """Detect sporadic violations (15+ minutes total barking across sessions with ≤5 minute gaps)."""
+    def _detect_intermittent_violations(self, sessions: List[BarkingSession]) -> List[ViolationReport]:
+        """Detect intermittent violations (15+ minutes total barking across sessions with ≤5 minute gaps)."""
         if not sessions:
             return []
         
@@ -702,23 +725,23 @@ class LegalViolationTracker:
         sorted_sessions = sorted(sessions, key=lambda s: s.start_time)
         
         # Group sessions into Legal Sporadic Sessions using 5-minute gap threshold
-        sporadic_sessions = self._group_sessions_for_sporadic_analysis(sorted_sessions)
+        intermittent_sessions = self._group_sessions_for_intermittent_analysis(sorted_sessions)
         
         violations = []
-        for sporadic_group in sporadic_sessions:
+        for intermittent_group in intermittent_sessions:
             # Calculate total bark duration across all sessions in group
-            total_bark_duration = sum(session.total_duration for session in sporadic_group)
+            total_bark_duration = sum(session.total_duration for session in intermittent_group)
             
             # Check if meets 15-minute threshold
-            if total_bark_duration >= 900:  # 15 minutes
+            if total_bark_duration >= self.intermittent_threshold:
                 # Create combined violation report
-                violation = self._create_sporadic_violation_report(sporadic_group)
+                violation = self._create_intermittent_violation_report(intermittent_group)
                 violations.append(violation)
         
         return violations
     
-    def _group_sessions_for_sporadic_analysis(self, sorted_sessions: List[BarkingSession]) -> List[List[BarkingSession]]:
-        """Group sessions for sporadic violation analysis using 5-minute gap threshold."""
+    def _group_sessions_for_intermittent_analysis(self, sorted_sessions: List[BarkingSession]) -> List[List[BarkingSession]]:
+        """Group sessions for intermittent violation analysis using 5-minute gap threshold."""
         if not sorted_sessions:
             return []
         
@@ -732,7 +755,7 @@ class LegalViolationTracker:
             # Calculate gap between end of last session and start of current session
             gap = current_session.start_time - last_session.end_time
             
-            if gap <= 300:  # 5 minutes or less - continue current sporadic group
+            if gap <= self.intermittent_gap_threshold:  # 5 minutes or less - continue current intermittent group
                 current_group.append(current_session)
             else:
                 # Gap is too large - end current group and start new one
@@ -746,8 +769,8 @@ class LegalViolationTracker:
         
         return groups
     
-    def _create_sporadic_violation_report(self, sessions: List[BarkingSession]) -> ViolationReport:
-        """Create a violation report for sporadic violations (multiple sessions)."""
+    def _create_intermittent_violation_report(self, sessions: List[BarkingSession]) -> ViolationReport:
+        """Create a violation report for intermittent violations (multiple sessions)."""
         from datetime import datetime, timedelta
         
         if not sessions:
@@ -884,7 +907,7 @@ class LegalViolationTracker:
 
             # Convert ViolationReport to enhanced Violation model
             # Map violation types from ViolationReport to enhanced model
-            violation_type = "Continuous" if report.violation_type == "Constant" else "Sporadic"
+            violation_type = "Continuous" if report.violation_type == "Constant" else "Intermittent"
 
             # Convert times to ISO 8601 timestamps
             # For backward compatibility, use same timestamp for all three fields

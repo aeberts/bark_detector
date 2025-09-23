@@ -40,3 +40,5 @@ A **Sporadic Violation** occurs when a session of intermittent barking lasts for
 ### 4.1. Disturbance Violation
 
 The bylaw regarding barking "in any manner that disturbs the peace, quiet, rest, enjoyment or comfort of people" is inherently subjective. As there are no objective, measurable criteria provided, this violation is **out of scope** for automatic detection. Documenting and arguing this type of disturbance is left to the user's discretion when submitting evidence to the authorities.
+
+**Note (2025-09-17 analysis):** Real-world persisted bark events show 90th-percentile inter-bark gaps around 18–33 seconds. To keep constant violations (≥5 minutes) detectable while remaining below the 60-second ceiling, plan to raise the continuous gap threshold from 10 seconds to roughly 33 seconds (or make it configurable in that range).

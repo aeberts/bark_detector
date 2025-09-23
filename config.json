@@ -26,8 +26,9 @@
     "timezone": "local"
   },
   "legal": {
-    "continuous_threshold": 300,
-    "sporadic_threshold": 900,
-    "sporadic_gap_threshold": 300
+    "constant_violation_duration": 300,
+    "constant_gap_threshold": 10.0,
+    "intermittent_violation_duration": 900,
+    "intermittent_gap_threshold": 300
   }
 }

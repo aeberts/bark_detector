@@ -173,8 +173,8 @@ class TestViolationAnalysisLogic:
         assert violations[0].violation_type == "Constant"
         assert violations[0].total_bark_duration >= 300  # 5+ minutes
     
-    def test_sporadic_violation_detection(self):
-        """Test detection of sporadic violations (15+ minutes total)."""
+    def test_intermittent_violation_detection(self):
+        """Test detection of intermittent violations (15+ minutes total)."""
         from bark_detector.legal.tracker import LegalViolationTracker
         
         # Create multiple sessions within 5-minute gaps that total > 15 minutes
@@ -208,13 +208,13 @@ class TestViolationAnalysisLogic:
         tracker = LegalViolationTracker()
         violations = tracker.analyze_violations(sessions)
         
-        # Should detect both continuous and sporadic violations
+        # Should detect both continuous and intermittent violations
         assert len(violations) >= 1
         
-        # Check for sporadic violation
-        sporadic_violations = [v for v in violations if v.violation_type == "Intermittent"]
-        if sporadic_violations:
-            assert sporadic_violations[0].total_bark_duration >= 900  # 15+ minutes
+        # Check for intermittent violation
+        intermittent_violations = [v for v in violations if v.violation_type == "Intermittent"]
+        if intermittent_violations:
+            assert intermittent_violations[0].total_bark_duration >= 900  # 15+ minutes
     
     def test_no_violations_short_sessions(self):
         """Test that short sessions don't trigger violations.""" 
