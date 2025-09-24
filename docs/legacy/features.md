@@ -1,4 +1,29 @@
-# Features
+# ⚠️ LEGACY DOCUMENT - DEPRECATED ⚠️
+
+**STATUS**: This document has been SUPERSEDED by BMad Method documentation
+**REPLACEMENT**: Use `docs/brownfield-architecture.md` for current technical reference
+**DO NOT USE**: This pre-BMad features list conflicts with current BMad workflows
+**DATE ARCHIVED**: 2025-09-24
+
+---
+
+## BMad Method Migration Guide
+
+This features.md was part of pre-BMad planning documentation that has been replaced by:
+
+- **Current System Reference**: `docs/brownfield-architecture.md` (comprehensive 370-line technical documentation)
+- **Epic-Driven Features**: Epic definitions in `docs/prd/epic-*.md` files
+- **Story-Based Development**: Feature implementation via BMad stories in `docs/stories/`
+- **Agent Workflows**: Use BMad agents for feature planning and implementation
+
+**For Current Work**:
+- Technical details → `docs/brownfield-architecture.md`
+- New features → Create epics/stories via BMad workflow
+- Implementation → Follow BMad agent workflows (@sm → @dev → @qa)
+
+---
+
+# ARCHIVED: Features
 
 ## FEATURE: YAMNet ML-Based Bark Detection
 ### User Requirements

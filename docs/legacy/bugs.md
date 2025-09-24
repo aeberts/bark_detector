@@ -1,4 +1,29 @@
-# B10 Bug: --enhanced-violation-report TypeError on Intel Mac (RESOLVED - 2025-08-18)
+# ⚠️ LEGACY DOCUMENT - DEPRECATED ⚠️
+
+**STATUS**: This document has been SUPERSEDED by BMad Method workflows
+**REPLACEMENT**: Use BMad QA workflows and current issue tracking in BMad stories
+**DO NOT USE**: This pre-BMad bug tracking conflicts with current BMad QA processes
+**DATE ARCHIVED**: 2025-09-24
+
+---
+
+## BMad Method Migration Guide
+
+This bugs.md was part of pre-BMad manual bug tracking that has been replaced by:
+
+- **Current Issues**: Track in BMad stories (`docs/stories/`) with proper status workflow
+- **QA Process**: Use BMad QA agent (`@qa`) for systematic testing and issue resolution
+- **Technical Reference**: `docs/brownfield-architecture.md` for current system constraints
+- **Story-Based Fixes**: Convert bugs to BMad stories for proper tracking and resolution
+
+**For Current Work**:
+- New bugs → Create BMad stories with QA review workflow
+- Testing → Use BMad QA agent and comprehensive test suite (`uv run pytest`)
+- Resolution → Follow Epic → Story → Implementation → QA pipeline
+
+---
+
+# ARCHIVED: B10 Bug: --enhanced-violation-report TypeError on Intel Mac (RESOLVED - 2025-08-18)
 
 ## Resolution
 

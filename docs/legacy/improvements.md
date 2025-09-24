@@ -1,4 +1,26 @@
-# Improvement Plans
+# ⚠️ LEGACY DOCUMENT - DEPRECATED ⚠️
+
+**STATUS**: This document has been SUPERSEDED by BMad Method workflows
+**REPLACEMENT**: Use `docs/brownfield-architecture.md` and BMad workflows
+**DO NOT USE**: This pre-BMad documentation conflicts with current BMad processes
+**DATE ARCHIVED**: 2025-09-24
+
+---
+
+## BMad Method Migration Guide
+
+This document was part of pre-BMad project management that has been replaced by:
+
+- **Current Technical Reference**: `docs/brownfield-architecture.md` (comprehensive system documentation)
+- **Epic-Driven Development**: Epic definitions in `docs/prd/epic-*.md` files
+- **Story-Based Work**: Implementation via BMad stories in `docs/stories/`
+- **Agent Workflows**: Use BMad agents (@sm, @dev, @qa) for specialized workflows
+
+**For Current Work**: Follow BMad Method processes instead of legacy workflows documented below.
+
+---
+
+# ARCHIVED: $(head -1 "$file" | sed 's/^# //')
 
 ## T22 Create script to rename bark recording files with correct start timestamps vs end timestamps. (COMPLETED)
 **Resolution**: Created comprehensive migration scripts in `scripts/` directory to rename existing recordings from END to START timestamps. Migration is reversible via JSON logging and includes full documentation for production deployment.

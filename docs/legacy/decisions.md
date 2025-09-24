@@ -1,4 +1,29 @@
-# Architecture Decision Records
+# ⚠️ LEGACY DOCUMENT - DEPRECATED ⚠️
+
+**STATUS**: This document has been SUPERSEDED by BMad Method documentation
+**REPLACEMENT**: Use `docs/brownfield-architecture.md` for current architectural decisions
+**DO NOT USE**: This pre-BMad ADR format conflicts with current BMad documentation standards
+**DATE ARCHIVED**: 2025-09-24
+
+---
+
+## BMad Method Migration Guide
+
+This decisions.md was part of pre-BMad architecture decision tracking that has been replaced by:
+
+- **Current Architecture**: Comprehensive documentation in `docs/brownfield-architecture.md`
+- **Epic-Driven Architecture**: Architectural decisions captured in epic planning (`docs/prd/`)
+- **Story-Level Decisions**: Technical decisions documented in BMad stories (`docs/stories/`)
+- **Living Documentation**: Architecture maintained as part of ongoing BMad workflow
+
+**For Current Work**:
+- Architecture questions → Reference `docs/brownfield-architecture.md`
+- New architectural decisions → Document in relevant epics/stories
+- Technical constraints → See brownfield architecture document
+
+---
+
+# ARCHIVED: Architecture Decision Records
 
 ## ADR-001: YAMNet for Bark Detection
 **Date**: 2025-07-28  

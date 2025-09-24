@@ -1,3 +1,16 @@
+# ⚠️ LEGACY TEMPLATE - DEPRECATED ⚠️
+
+**STATUS**: This template has been SUPERSEDED by BMad Method templates
+**REPLACEMENT**: Use professional BMad templates in `.bmad-core/templates/`
+**DO NOT USE**: This pre-BMad template conflicts with current BMad standards
+**DATE ARCHIVED**: 2025-09-24
+
+Use BMad Master command `*create-doc {template}` to see available professional templates.
+
+---
+
+# ARCHIVED TEMPLATE FOLLOWS (DO NOT USE)
+
 # User Story Template
 
 ## Story Format

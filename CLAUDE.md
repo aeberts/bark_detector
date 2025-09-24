@@ -1,44 +1,51 @@
-# CLAUDE.md
-This file provides guidance to Claude Code (claude.ai/code) aka `CC` when working with code in this repository.
+# CLAUDE.md - BMad Method Integration
+This file provides guidance to Claude Code (claude.ai/code) when working with the Bark Detector project using BMad Method workflows.
 
 # Project Overview
-- Purpose: This project aims to develop a "bark detector" which will use machine learing to identify the sound of one or more barking dogs and will start making a medium-quality sound recording of the barking so the user can collect evidence in order to make a formal complaint to the local governing bodies.
-- Current phase/status: Feature implementation.
+- Purpose: ML-based "bark detector" for legal evidence collection using YAMNet neural network to identify dog barking and create audio recordings for formal complaints to municipal authorities (City of Kelowna/RDCO).
+- Status: Feature implementation phase with modular architecture and comprehensive legal compliance system.
+
+## BMad Method Configuration
+- Core config: `.bmad-core/core-config.yaml` (drives agent behavior)
+- Agent activation: Use BMad agents with `@agent-name` or `/agent-name` syntax
+- Epic-driven development: BMad workflow with Story → Implementation → QA pipeline
+- Project documentation: See `docs/brownfield-architecture.md` for comprehensive technical reference
 
 ## Technology Approach
-- The system will use Machine Learning (ML) libraries to detect barking. The development platform is an M1-based Mac and it will be deployed on a single Intel-based Mac.
-- The system will start recording when the ML detector is triggered and will continue to record until 30 seconds pass without barking being detected.
-- **Package Manager**: This project uses `uv` for Python package management. Always prefix Python commands with `uv run` (e.g., `uv run pytest`, `uv run python -m bark_detector`).
+- ML Detection: Google YAMNet neural network via TensorFlow Hub for real-time bark classification
+- Platform: Cross-platform (M1 Mac development, Intel Mac deployment)
+- Package Manager: **uv** for Python package management - ALWAYS prefix commands with `uv run`
+- Legal Compliance: City of Kelowna bylaw violation detection (5min continuous, 15min sporadic thresholds)
 
-# Project Structure
-IMPORTANT: This project uses shared planning documents so CC can track changes with the user across sessions and so CC can effectively delegate tasks to subagents.
+# BMad-Compliant Project Structure
 
-## Core Implementation
-- @ bd.py - backwards compatibility wrapper and legacy entry point (deprecated, use `uv run python -m bark_detector`)
-- @ bd_original.py - original monolithic implementation prior to T2 refactoring (reference for missing features)
-- @ bark_detector/ - modern modular package structure (core/, calibration/, legal/, recording/, utils/)
-- @ tests/ - comprehensive test suite (45 tests covering all modules with sophisticated ML/audio mocking)
-- @ install.py - cross-platform install script (Intel-Mac vs M1 Mac detection)
+## Core Implementation (from brownfield-architecture.md)
+- @ bark_detector/ - Modern modular package (core/, calibration/, legal/, recording/, utils/)
+- @ bd.py - Legacy entry point with deprecation warning (backwards compatibility)
+- @ bd_original.py - Original 3,111-line monolith (reference for missing features)
+- @ tests/ - Comprehensive test suite (111+ tests with ML/audio mocking)
+- @ install.py - Cross-platform installer with Intel/Apple Silicon detection
 
-## Documentation, Planning and Tracking
-- @ README.md - user-facing project information, installation, usage
-- @ CHANGELOG.md - development change log (keep succinct)
-- @ docs/backlog.md - task tracking (unplanned, planned, completed)
-- @ docs/features.md - feature requirements and specifications
-- @ docs/project_overview.md - project description, goals, domain knowledge
-- @ docs/project_status.md - current project phase and status summary
-- @ docs/bugs.md - bug details and logs
-- @ docs/decisions.md - architecture decision records
-- @ docs/tests.md - details of tests to implement
-- @ docs/improvements.md - details of improvements to implement
+## BMad Method Documentation Structure
+- @ docs/brownfield-architecture.md - **PRIMARY TECHNICAL REFERENCE** (370 lines, comprehensive system documentation)
+- @ docs/prd/ - Sharded PRD epics (if configured via core-config.yaml)
+- @ docs/architecture/ - Sharded architecture components (if configured)
+- @ docs/stories/ - BMad story workflow (Draft → Approved → InProgress → Review → Done)
+- @ .bmad-core/ - BMad templates, tasks, checklists, and agent definitions
+
+## Legacy Documents (for historical reference only)
+- @ docs/backlog.md - Pre-BMad task tracking (superseded by Epic/Story workflow)
+- @ docs/templates/ - Pre-BMad templates (superseded by .bmad-core/templates/)
+- @ docs/features.md, docs/bugs.md, docs/decisions.md - Historical planning documents
 
 ## Platform Requirements
-- @ requirements-apple-silicon.txt - M1 Mac dependencies
-- @ requirements-intel.txt - Intel Mac dependencies  
-- @ requirements-fallback.txt - fallback requirements
+- @ requirements-apple-silicon.txt - Apple Silicon Mac dependencies
+- @ requirements-intel.txt - Intel Mac dependencies
+- @ requirements-fallback.txt - Fallback requirements
 
-# Development Commands
-**Important**: This project uses `uv` for package management. Always use `uv run` prefix:
+# Development Commands (uv Package Manager)
+
+**CRITICAL**: Always use `uv run` prefix for all Python commands:
 
 - **Run application**: `uv run python -m bark_detector` (modern) or `uv run bd.py` (legacy)
 - **Run tests**: `uv run pytest tests/` or `uv run pytest tests/test_calibration/ -v`
@@ -46,56 +53,68 @@ IMPORTANT: This project uses shared planning documents so CC can track changes w
 - **Add packages**: `uv add package_name`
 - **Audio conversion**: `uv run python -m bark_detector --convert-all 2025-08-03`
 
-# Progress Tracking
-- Track project status in the @docs/backlog.md file. Use ASCII text only - don't use emoji.
-- After a task has been completed add a short summary to @CHANGELOG.md
+# BMad Agent Workflow
 
-# Templates & Workflows
-- Session Restart: Read @docs/templates/session_restart.md
-- PRD Creation: Read @docs/templates/prd_template.md
-- User Stories: Read @docs/templates/user_story_template.md
-- Architecture Decisions: Record in @docs/decisions.md
+## Story Creation and Implementation
+1. **Story Creation**: Use BMad Scrum Master agent (`@sm`) with `*draft` command
+2. **Implementation**: Use BMad Developer agent (`@dev`) following story tasks
+3. **QA Review**: Use BMad QA agent (`@qa`) for review and approval
+4. **Status Flow**: Draft → Approved → InProgress → Review → Done
 
-# Common Workflow Tasks
+## Epic-Driven Development
+- Epic creation from sharded PRD components
+- Story breakdown following BMad templates
+- Sequential implementation with proper handoffs
+- QA gates at story completion
 
-## ID Assignment
-- Assign unique IDs to any tasks marked with `?` (e.g., `I?` → `I5`)
+# Common BMad Agent Commands
 
-## Document Reading Priority
-- Always check @docs/backlog.md `# Tasks to Discuss & Plan` for active priorities.
-- Reference @docs/features.md for existing requirements when planning
-- Check @docs/bugs.md for bug details and logs
+## BMad Master Commands (this agent)
+- `*help` - Show available commands
+- `*task {task-name}` - Execute specific BMad task
+- `*create-doc {template}` - Create document from template
+- `*document-project` - Comprehensive project documentation audit
+- `*execute-checklist {checklist}` - Run specific checklist
 
-## Task Completion Updates
-- Mark task complete in @docs/backlog.md (move to completed section)
-- Add brief summary to @CHANGELOG.md
-- Update @docs/decisions.md with reasoning for changes
+## Development Workflow Integration
+- **Code Changes**: Follow brownfield-architecture.md for module understanding
+- **Testing**: 111+ test suite with sophisticated ML mocking (`uv run pytest`)
+- **Configuration**: JSON-based config system with precedence (CLI > config file > defaults)
+- **Legal Analysis**: YAMNet-based violation detection for municipal compliance
 
-# Development Workflow
+# Technical Constraints (from brownfield-architecture.md)
 
-## Session Startup (only if user asks for task suggestions)
-- **Apply**: Document Reading Priority and ID Assignment (see Common Workflow Tasks)
-- Review @docs/backlog.md `# Tasks to Discuss & Plan` section for priorities
-- Check @docs/project_status.md for current state  
-- Suggest 3 tasks by ID from @docs/backlog.md (e.g., "I2", "T1", "F12") and brief description
+## Hard Dependencies
+- Python 3.9-3.11 (TensorFlow requirement, NOT 3.12+)
+- TensorFlow 2.12.0 (platform-specific: tensorflow-macos vs tensorflow)
+- YAMNet model via TensorFlow Hub (16kHz audio requirement)
+- uv package manager for dependency resolution
 
-## Task Planning (for new features/improvements)
-**Only when user requests new work requiring planning:**
-- **Apply**: Document Reading Priority and ID Assignment (see Common Workflow Tasks)
-- If missing requirements: plan the feature (ask clarifying questions if needed)
-- Use @docs/templates/prd_template.md or @docs/user_story_template.md as guides
-- Keep planning minimal (think MVP)
-- Present plan and wait for user approval before proceeding
-- Update @docs/features.md with approved requirements
+## Platform-Specific Workarounds
+- TensorFlow logging suppression utility for Intel Mac compatibility
+- Separate requirements files for Apple Silicon vs Intel Macs
+- YAMNet model cache corruption recovery (`rm -rf /tmp/tfhub_modules`)
 
-## During Implementation
-- Use TodoWrite tool to track multi-step tasks
-- Update todo status in real-time (pending → in_progress → completed)
-- For complex work: provide progress updates every 2-3 steps
-- If discovering better approach: pause and ask user approval
-- Document technical decisions in @docs/decisions.md
+# Development Workflow Best Practices
 
-## After Completion
-**Required updates after any work:**
-- **Apply**: Task Completion Updates (see Common Workflow Tasks)
-- If architecture changed: update @docs/project_overview.md
+## BMad Method Compliance
+- Reference brownfield-architecture.md for technical implementation details
+- Use BMad agents for specialized workflows (SM for stories, Dev for implementation, QA for review)
+- Follow Epic → Story → Implementation → QA pipeline
+- Maintain story status through BMad workflow states
+
+## Code Quality Standards
+- All tests must pass: `uv run pytest tests/`
+- Follow existing architectural patterns documented in brownfield-architecture.md
+- Maintain backwards compatibility via bd.py wrapper
+- Use configuration system for customizable parameters
+
+## Documentation Updates
+- Update brownfield-architecture.md for significant architectural changes
+- Create/update stories in docs/stories/ for new features
+- Use BMad templates for consistent documentation structure
+- Archive legacy documents rather than modifying them
+
+---
+
+*This CLAUDE.md is BMad Method compliant and should be used with BMad agents for optimal workflow integration. For detailed technical reference, see docs/brownfield-architecture.md.*

@@ -1,4 +1,29 @@
-# Priority Tasks to Discuss & Plan
+# ⚠️ LEGACY DOCUMENT - DEPRECATED ⚠️
+
+**STATUS**: This document has been SUPERSEDED by BMad Method workflows
+**REPLACEMENT**: Use BMad Epic/Story workflow in `docs/stories/` and `docs/prd/`
+**DO NOT USE**: This pre-BMad task tracking system conflicts with current workflows
+**DATE ARCHIVED**: 2025-09-24
+
+---
+
+## BMad Method Migration Guide
+
+This backlog.md was part of a pre-BMad manual task tracking system that has been replaced by:
+
+- **Epic Management**: Epics defined in sharded PRD (`docs/prd/`)
+- **Story Management**: Stories in BMad workflow (`docs/stories/`)
+- **Agent Workflows**: Use BMad agents (@sm, @dev, @qa) for task management
+- **Current Technical Reference**: `docs/brownfield-architecture.md`
+
+**For Current Work**: Use BMad Master agent commands:
+- `*task create-next-story` - Create new stories
+- `*execute-checklist story-draft-checklist` - Draft story workflow
+- Reference `docs/prd/epic-*.md` for epic-driven development
+
+---
+
+# ARCHIVED: Priority Tasks to Discuss & Plan
 - [ ] I15 Improvement: Separate log files into separate files by day (e.g. detection log, analysis log, etc.). Move all logs to the `logs/` folder separated by date (e.g. `logs/2025-08-25/2025-08-25_bark_detection.log`, `logs/2025-08-25/2025-08-25_analysis.log).
 - [ ] I23 Improvement: Save bark events to project local mysql database in real-time for later analysis.
 - [x] T21 Task: Review all code which analyzes bark recording files for incorrect timestamps.
