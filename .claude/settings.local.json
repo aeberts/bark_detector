@@ -9,7 +9,8 @@
       "Bash(mkdir:*)",
       "Bash(chmod:*)",
       "Bash(cat:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(md-tree:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
