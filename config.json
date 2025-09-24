@@ -27,7 +27,7 @@
   },
   "legal": {
     "constant_violation_duration": 300,
-    "constant_gap_threshold": 10.0,
+    "constant_gap_threshold": 15,
     "intermittent_violation_duration": 900,
     "intermittent_gap_threshold": 300
   }
