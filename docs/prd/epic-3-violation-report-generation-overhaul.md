@@ -1,4 +1,4 @@
-# Epic 1: Violation Report Generation Overhaul - Brownfield Enhancement
+# Epic 3: Violation Report Generation Overhaul - Brownfield Enhancement
 
 ## Epic Goal
 

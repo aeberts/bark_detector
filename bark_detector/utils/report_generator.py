@@ -14,13 +14,16 @@ except ImportError:
     SOUNDFILE_AVAILABLE = False
 
 from .time_utils import (
-    parse_log_timestamp, 
-    datetime_to_time_of_day, 
+    parse_log_timestamp,
+    datetime_to_time_of_day,
     calculate_duration_string,
     extract_bark_info_from_log,
     parse_audio_filename_timestamp,
     get_audio_file_bark_offset
 )
+
+# Import unified ViolationReport from legal models
+from ..legal.models import ViolationReport as UnifiedViolationReport
 
 
 class BarkEvent:
@@ -39,34 +42,34 @@ class BarkEvent:
         return datetime_to_time_of_day(self.timestamp)
 
 
-class ViolationReport:
-    """Represents a violation with detailed bark events"""
-    
+class ReportViolation:
+    """Lightweight wrapper for violation reporting that works with the unified models."""
+
     def __init__(self, violation_type: str, start_time: datetime, end_time: datetime):
         self.violation_type = violation_type
         self.start_time = start_time
         self.end_time = end_time
         self.bark_events: List[BarkEvent] = []
         self.audio_files: List[str] = []
-    
+
     def add_bark_event(self, bark_event: BarkEvent):
         """Add a bark event to this violation"""
         self.bark_events.append(bark_event)
         if bark_event.audio_file and bark_event.audio_file not in self.audio_files:
             self.audio_files.append(bark_event.audio_file)
-    
+
     def start_time_of_day(self) -> str:
         """Get start time as HH:MM:SS"""
         return datetime_to_time_of_day(self.start_time)
-    
+
     def end_time_of_day(self) -> str:
         """Get end time as HH:MM:SS"""
         return datetime_to_time_of_day(self.end_time)
-    
+
     def duration_string(self) -> str:
         """Get duration as human-readable string"""
         return calculate_duration_string(self.start_time, self.end_time)
-    
+
     def total_barks(self) -> int:
         """Get total number of bark events"""
         return len(self.bark_events)
@@ -197,8 +200,8 @@ class LogBasedReportGenerator:
                 bark_event.audio_file = audio_file_info[best_match]['file'].name
                 bark_event.offset_in_file = best_offset
     
-    def generate_violation_summary_report(self, target_date: date, 
-                                        violations: List[ViolationReport]) -> str:
+    def generate_violation_summary_report(self, target_date: date,
+                                        violations: List[ReportViolation]) -> str:
         """Generate the violation summary report as specified in improvements.md"""
         
         report_lines = []
@@ -237,8 +240,8 @@ class LogBasedReportGenerator:
         
         return "\n".join(report_lines)
     
-    def generate_detailed_violation_report(self, target_date: date, 
-                                         violation: ViolationReport, 
+    def generate_detailed_violation_report(self, target_date: date,
+                                         violation: ReportViolation,
                                          violation_number: int) -> str:
         """Generate detailed violation report for a specific violation"""
         
@@ -320,7 +323,7 @@ class LogBasedReportGenerator:
         
         return reports
     
-    def create_violations_from_bark_events(self, bark_events: List[BarkEvent]) -> List[ViolationReport]:
+    def create_violations_from_bark_events(self, bark_events: List[BarkEvent]) -> List[ReportViolation]:
         """Create violation reports from bark events using proper legal detection logic"""
         if not bark_events:
             return []
@@ -431,7 +434,7 @@ class LogBasedReportGenerator:
                 continue
             
             # Create our report violation
-            report_violation = ViolationReport(legal_violation.violation_type, violation_start, violation_end)
+            report_violation = ReportViolation(legal_violation.violation_type, violation_start, violation_end)
             
             # Add bark events that fall within this violation timespan
             for bark_event in bark_events:

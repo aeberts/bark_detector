@@ -7,9 +7,9 @@ from pathlib import Path
 from unittest.mock import Mock, patch, mock_open
 
 from bark_detector.utils.report_generator import (
-    LogBasedReportGenerator, 
-    BarkEvent, 
-    ViolationReport
+    LogBasedReportGenerator,
+    BarkEvent,
+    ReportViolation
 )
 from bark_detector.utils.time_utils import extract_bark_info_from_log
 
@@ -36,14 +36,14 @@ class TestBarkEvent:
         assert event.time_of_day() == "06:25:13"
 
 
-class TestViolationReport:
+class TestReportViolation:
     """Test ViolationReport data model"""
     
     def test_violation_report_creation(self):
         """Test ViolationReport creation and basic properties"""
         start_time = datetime(2025, 8, 15, 6, 25, 13)
         end_time = datetime(2025, 8, 15, 6, 47, 23)
-        violation = ViolationReport("Intermittent", start_time, end_time)
+        violation = ReportViolation("Intermittent", start_time, end_time)
         
         assert violation.violation_type == "Intermittent"
         assert violation.start_time == start_time
@@ -55,7 +55,7 @@ class TestViolationReport:
         """Test adding bark events to violation"""
         start_time = datetime(2025, 8, 15, 6, 25, 13)
         end_time = datetime(2025, 8, 15, 6, 47, 23)
-        violation = ViolationReport("Intermittent", start_time, end_time)
+        violation = ReportViolation("Intermittent", start_time, end_time)
         
         event1 = BarkEvent(datetime(2025, 8, 15, 6, 25, 15), 0.8, 0.4, "file1.wav")
         event2 = BarkEvent(datetime(2025, 8, 15, 6, 25, 20), 0.7, 0.3, "file2.wav")
@@ -74,7 +74,7 @@ class TestViolationReport:
         """Test time formatting methods"""
         start_time = datetime(2025, 8, 15, 6, 25, 13)
         end_time = datetime(2025, 8, 15, 6, 47, 23)
-        violation = ViolationReport("Intermittent", start_time, end_time)
+        violation = ReportViolation("Intermittent", start_time, end_time)
         
         assert violation.start_time_of_day() == "06:25:13"
         assert violation.end_time_of_day() == "06:47:23"
@@ -84,7 +84,7 @@ class TestViolationReport:
         """Test total bark count"""
         start_time = datetime(2025, 8, 15, 6, 25, 13)
         end_time = datetime(2025, 8, 15, 6, 47, 23)
-        violation = ViolationReport("Intermittent", start_time, end_time)
+        violation = ReportViolation("Intermittent", start_time, end_time)
         
         # Add some events
         for i in range(5):
@@ -327,7 +327,7 @@ class TestLogBasedReportGenerator:
         # Create test violations
         start_time1 = datetime(2025, 8, 15, 6, 25, 13)
         end_time1 = datetime(2025, 8, 15, 6, 47, 23)
-        violation1 = ViolationReport("Intermittent", start_time1, end_time1)
+        violation1 = ReportViolation("Intermittent", start_time1, end_time1)
         violation1.audio_files = ["file1.wav", "file2.wav"]
         
         # Add some bark events
@@ -337,7 +337,7 @@ class TestLogBasedReportGenerator:
         
         start_time2 = datetime(2025, 8, 15, 8, 10, 0)
         end_time2 = datetime(2025, 8, 15, 8, 15, 30)
-        violation2 = ViolationReport("Constant", start_time2, end_time2)
+        violation2 = ReportViolation("Constant", start_time2, end_time2)
         violation2.audio_files = ["file3.wav"]
         
         violations = [violation1, violation2]
@@ -366,7 +366,7 @@ class TestLogBasedReportGenerator:
         # Create test violation with bark events
         start_time = datetime(2025, 8, 15, 6, 25, 13)
         end_time = datetime(2025, 8, 15, 6, 47, 23)
-        violation = ViolationReport("Intermittent", start_time, end_time)
+        violation = ReportViolation("Intermittent", start_time, end_time)
         
         # Add bark events with different audio files
         events = [
@@ -416,7 +416,7 @@ class TestLogBasedReportGenerator:
         audio_files = [Path("file1.wav"), Path("file2.wav")]
         mock_find_audio.return_value = audio_files
         
-        violation = ViolationReport("Intermittent", 
+        violation = ReportViolation("Intermittent", 
                                   datetime(2025, 8, 15, 6, 25, 0),
                                   datetime(2025, 8, 15, 6, 26, 0))
         mock_create_violations.return_value = [violation]

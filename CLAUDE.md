@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 - Core config: `.bmad-core/core-config.yaml` (drives agent behavior)
 - Agent activation: Use BMad agents with `@agent-name` or `/agent-name` syntax
 - Epic-driven development: BMad workflow with Story → Implementation → QA pipeline
-- Project documentation: See `docs/brownfield-architecture.md` for comprehensive technical reference
+- Project documentation: See `docs/architecture/` for comprehensive technical reference
 
 ## Technology Approach
 - ML Detection: Google YAMNet neural network via TensorFlow Hub for real-time bark classification
@@ -19,7 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 # BMad-Compliant Project Structure
 
-## Core Implementation (from brownfield-architecture.md)
+## Core Implementation (from docs/architecture/)
 - @ bark_detector/ - Modern modular package (core/, calibration/, legal/, recording/, utils/)
 - @ bd.py - Legacy entry point with deprecation warning (backwards compatibility)
 - @ bd_original.py - Original 3,111-line monolith (reference for missing features)
@@ -27,7 +27,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 - @ install.py - Cross-platform installer with Intel/Apple Silicon detection
 
 ## BMad Method Documentation Structure
-- @ docs/brownfield-architecture.md - **PRIMARY TECHNICAL REFERENCE** (370 lines, comprehensive system documentation)
+- @ docs/architecture/ - **PRIMARY TECHNICAL REFERENCE** (BMad-compliant sharded architecture components)
+- @ docs/archive/brownfield-architecture.md - Historical master document (archived reference)
 - @ docs/prd/ - Sharded PRD epics (if configured via core-config.yaml)
 - @ docs/architecture/ - Sharded architecture components (if configured)
 - @ docs/stories/ - BMad story workflow (Draft → Approved → InProgress → Review → Done)
@@ -77,12 +78,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 - `*execute-checklist {checklist}` - Run specific checklist
 
 ## Development Workflow Integration
-- **Code Changes**: Follow brownfield-architecture.md for module understanding
+- **Code Changes**: Follow docs/architecture/ for module understanding
 - **Testing**: 111+ test suite with sophisticated ML mocking (`uv run pytest`)
 - **Configuration**: JSON-based config system with precedence (CLI > config file > defaults)
 - **Legal Analysis**: YAMNet-based violation detection for municipal compliance
 
-# Technical Constraints (from brownfield-architecture.md)
+# Technical Constraints (from docs/architecture/)
 
 ## Hard Dependencies
 - Python 3.9-3.11 (TensorFlow requirement, NOT 3.12+)
@@ -98,23 +99,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 # Development Workflow Best Practices
 
 ## BMad Method Compliance
-- Reference brownfield-architecture.md for technical implementation details
+- Reference docs/architecture/ for technical implementation details
 - Use BMad agents for specialized workflows (SM for stories, Dev for implementation, QA for review)
 - Follow Epic → Story → Implementation → QA pipeline
 - Maintain story status through BMad workflow states
 
+## Adding New Features with BMad Integration
+
+### For New Epics:
+1. **Determine Epic Number:** Check existing files in `docs/prd/epic-*.md` to find next available number
+2. **Create Epic File:** Use format `docs/prd/epic-{n}-{feature-name}.md` (e.g., `epic-4-advanced-reporting.md`)
+3. **Use BMad Agents:**
+   - `@sm` (Scrum Master) for epic/story creation
+   - `@dev` (Developer) for implementation
+   - `@qa` (QA) for review and testing
+
+### Document Organization Rules:
+- **Primary Architecture:** `docs/architecture/` (BMad-compliant sharded components)
+- **Individual Epics:** `docs/prd/epic-{n}-*.md` (one file per epic)
+- **Stories:** `docs/stories/` (BMad story lifecycle management)
+- **Archives:** `docs/archive/` (historical/deprecated documents)
+
+### Epic Numbering Guidelines:
+- Epic numbers must be sequential (1, 2, 3, 4...)
+- Check existing epic files before creating new ones
+- Never skip numbers (creates BMad agent confusion)
+- Use descriptive but concise epic names
+
 ## Code Quality Standards
 - All tests must pass: `uv run pytest tests/`
-- Follow existing architectural patterns documented in brownfield-architecture.md
+- Follow existing architectural patterns documented in docs/architecture/
 - Maintain backwards compatibility via bd.py wrapper
 - Use configuration system for customizable parameters
 
 ## Documentation Updates
-- Update brownfield-architecture.md for significant architectural changes
+- Update docs/architecture/ components for significant architectural changes
 - Create/update stories in docs/stories/ for new features
 - Use BMad templates for consistent documentation structure
 - Archive legacy documents rather than modifying them
 
 ---
 
-*This CLAUDE.md is BMad Method compliant and should be used with BMad agents for optimal workflow integration. For detailed technical reference, see docs/brownfield-architecture.md.*
+*This CLAUDE.md is BMad Method compliant and should be used with BMad agents for optimal workflow integration. For detailed technical reference, see docs/architecture/.*

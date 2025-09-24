@@ -100,7 +100,7 @@ class Violation:
 
 @dataclass
 class ViolationReport:
-    """Represents a detected bylaw violation with RDCO-compliant information."""
+    """Presentation-layer object for violation display and reporting. Generated on-demand from Violation data."""
     date: str  # YYYY-MM-DD format
     start_time: str  # HH:MM AM/PM format
     end_time: str  # HH:MM AM/PM format
@@ -114,3 +114,66 @@ class ViolationReport:
     peak_confidence: float
     avg_confidence: float
     created_timestamp: str  # ISO format timestamp when report was generated
+
+    @classmethod
+    def from_violation(cls, violation: 'Violation', bark_events: List['PersistedBarkEvent'] = None,
+                      audio_files: List[str] = None) -> 'ViolationReport':
+        """Create ViolationReport from Violation object and associated data.
+
+        Args:
+            violation: Source Violation object
+            bark_events: Associated PersistedBarkEvent objects for this violation
+            audio_files: List of audio file paths associated with this violation
+
+        Returns:
+            ViolationReport object for presentation/reporting
+        """
+        from datetime import datetime
+
+        # Parse ISO timestamps for presentation formatting
+        start_dt = datetime.fromisoformat(violation.startTimestamp.replace('Z', '+00:00'))
+        end_dt = datetime.fromisoformat(violation.endTimestamp.replace('Z', '+00:00'))
+
+        # Format times for presentation
+        start_time_str = start_dt.strftime("%I:%M %p").lstrip('0')
+        end_time_str = end_dt.strftime("%I:%M %p").lstrip('0')
+        date_str = start_dt.strftime("%Y-%m-%d")
+
+        # Calculate confidence metrics from bark events
+        confidence_scores = []
+        peak_confidence = 0.0
+        avg_confidence = 0.0
+
+        if bark_events and hasattr(bark_events, '__iter__') and not isinstance(bark_events, str):
+            try:
+                confidence_scores = [event.confidence for event in bark_events
+                                   if hasattr(event, 'bark_id') and event.bark_id in violation.barkEventIds]
+                if confidence_scores:
+                    peak_confidence = max(confidence_scores)
+                    avg_confidence = sum(confidence_scores) / len(confidence_scores)
+            except (AttributeError, TypeError):
+                # Handle mocked or invalid bark_events gracefully
+                pass
+
+        # Map violation type
+        violation_type = "Constant" if violation.type == "Continuous" else "Intermittent"
+
+        # Set default audio files if not provided
+        if audio_files is None:
+            audio_files = []
+
+        return cls(
+            date=date_str,
+            start_time=start_time_str,
+            end_time=end_time_str,
+            violation_type=violation_type,
+            total_bark_duration=violation.durationMinutes * 60,  # Convert to seconds (total incident duration for barking)
+            total_incident_duration=violation.durationMinutes * 60,  # Convert to seconds (total incident duration)
+            audio_files=audio_files,
+            audio_file_start_times=[start_time_str],
+            audio_file_end_times=[end_time_str],
+            confidence_scores=confidence_scores,
+            peak_confidence=peak_confidence,
+            avg_confidence=avg_confidence,
+            created_timestamp=datetime.now().isoformat()
+        )

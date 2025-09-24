@@ -576,34 +576,24 @@ class LegalViolationTracker:
         return violation_reports
 
     def _convert_to_violation_reports(self, violations: List[Violation], audio_files: List, target_date: str) -> List[ViolationReport]:
-        """Convert enhanced Violation objects to legacy ViolationReport format for backward compatibility."""
+        """Convert Violation objects to ViolationReport using unified presentation layer."""
         violation_reports = []
+
+        # Load bark events for this date to get confidence data
+        bark_events = []
+        if self.violation_db and hasattr(self.violation_db, 'load_events'):
+            try:
+                bark_events = self.violation_db.load_events(target_date)
+            except (ValueError, AttributeError):
+                bark_events = []
 
         for violation in violations:
             try:
-                # Parse ISO timestamps to extract time components
-                start_dt = datetime.fromisoformat(violation.startTimestamp.replace('Z', '+00:00'))
-                end_dt = datetime.fromisoformat(violation.endTimestamp.replace('Z', '+00:00'))
-
-                # Format time strings for ViolationReport
-                start_time_str = start_dt.strftime("%I:%M %p").lstrip('0')
-                end_time_str = end_dt.strftime("%I:%M %p").lstrip('0')
-
-                # Create ViolationReport for backward compatibility
-                violation_report = ViolationReport(
-                    date=target_date,
-                    start_time=start_time_str,
-                    end_time=end_time_str,
-                    violation_type="Constant" if violation.type == "Continuous" else "Intermittent",
-                    total_bark_duration=violation.durationMinutes * 60,  # Convert to seconds
-                    total_incident_duration=violation.durationMinutes * 60,  # Convert to seconds
-                    audio_files=[str(f) for f in audio_files],
-                    audio_file_start_times=[start_time_str],
-                    audio_file_end_times=[end_time_str],
-                    confidence_scores=[0.8],  # Placeholder for compatibility
-                    peak_confidence=0.8,  # Placeholder for compatibility
-                    avg_confidence=0.8,  # Placeholder for compatibility
-                    created_timestamp=datetime.now().isoformat()
+                # Use the unified ViolationReport.from_violation method
+                violation_report = ViolationReport.from_violation(
+                    violation=violation,
+                    bark_events=bark_events,
+                    audio_files=[str(f) for f in audio_files] if audio_files else []
                 )
                 violation_reports.append(violation_report)
 

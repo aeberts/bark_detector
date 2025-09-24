@@ -10,7 +10,7 @@ from .time_utils import (
     parse_audio_filename_timestamp,
     get_audio_file_bark_offset
 )
-from .report_generator import LogBasedReportGenerator, BarkEvent, ViolationReport
+from .report_generator import LogBasedReportGenerator, BarkEvent, ReportViolation
 
 __all__ = [
     'convert_numpy_types', 
@@ -24,5 +24,5 @@ __all__ = [
     'get_audio_file_bark_offset',
     'LogBasedReportGenerator',
     'BarkEvent',
-    'ViolationReport'
+    'ReportViolation'
 ]
