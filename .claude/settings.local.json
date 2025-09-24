@@ -10,7 +10,8 @@
       "Bash(chmod:*)",
       "Bash(cat:*)",
       "Bash(find:*)",
-      "Bash(md-tree:*)"
+      "Bash(md-tree:*)",
+      "Bash(uv add:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
