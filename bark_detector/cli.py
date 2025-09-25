@@ -78,8 +78,8 @@ Examples:
     # Analysis modes
     parser.add_argument('--analyze-violations', type=str,
                         help='Analyze recordings for bylaw violations using YAMNet ML analysis (date: YYYY-MM-DD). Creates structured JSON files with bark events and violations in violations/[DATE]/ directory.')
-    parser.add_argument('--violation-report', nargs=2, metavar=('START_DATE', 'END_DATE'),
-                        help='Generate violation report for date range')
+    parser.add_argument('--violation-report', type=str, metavar='YYYY-MM-DD',
+                        help='Generate PDF violation report for specified date (automatically runs analysis if needed)')
     parser.add_argument('--export-violations', type=str,
                         help='Export violations to CSV file')
     parser.add_argument('--list-violations', action='store_true',
@@ -426,36 +426,71 @@ def main():
         
         if args.violation_report:
             from .legal.database import ViolationDatabase
-            
+            from .utils.pdf_generator import PDFGenerationService
+            from datetime import datetime
+            from pathlib import Path as PathLib
+
             try:
-                start_date, end_date = args.violation_report
-                # Use project-local violations/ directory  
-                db = ViolationDatabase(violations_dir=Path('violations'))
-                
-                violations = db.get_violations_by_date_range(start_date, end_date)
-                
-                if violations:
-                    logger.info(f"📋 Found {len(violations)} violations from {start_date} to {end_date}:")
-                    for i, violation in enumerate(violations, 1):
-                        logger.info(f"  {i}. {violation.date} - {violation.violation_type}")
-                        logger.info(f"     Duration: {violation.total_bark_duration/60:.1f}min, Files: {len(violation.audio_files)}")
-                    
-                    # Generate comprehensive report
-                    logger.info("📝 Generating comprehensive violation report...")
-                    report_dir = db.generate_violation_report(start_date, end_date)
-                    
-                    if report_dir:
-                        logger.info(f"✅ Report generated successfully: {report_dir}")
-                        logger.info("📂 Report includes:")
-                        logger.info("   - Detailed violation analysis (TXT)")
-                        logger.info("   - Machine-readable data (CSV)")
-                        logger.info("   - Audio evidence files (WAV)")
-                        logger.info("   - Executive summary")
+                # Parse and validate date format
+                target_date = args.violation_report
+                try:
+                    datetime.strptime(target_date, '%Y-%m-%d')
+                except ValueError:
+                    logger.error(f"❌ Invalid date format: {target_date}. Use YYYY-MM-DD format")
+                    return 1
+
+                logger.info(f"📊 Generating PDF violation report for {target_date}...")
+
+                # Check if violations file exists, run analysis if needed
+                violation_db = ViolationDatabase(violations_dir=PathLib('violations'))
+                violation_file_path = PathLib('violations') / target_date / f'{target_date}_violations.json'
+
+                if not violation_file_path.exists():
+                    logger.info(f"📋 No existing violation analysis found for {target_date}")
+                    logger.info(f"🔍 Automatically running violation analysis...")
+
+                    # Run analysis using the detector
+                    violations = detector.analyze_violations_for_date(target_date)
+
+                    if violations is None:
+                        logger.error(f"❌ Failed to run violation analysis for {target_date}")
+                        return 1
+
+                    if not violations:
+                        logger.info(f"📋 No violations found for {target_date}. Skipping PDF generation.")
+                        return 0
+
+                    logger.info(f"✅ Analysis complete. Found {len(violations)} violations")
+
+                # Create reports directory if it doesn't exist
+                reports_dir = PathLib('reports')
+                reports_dir.mkdir(parents=True, exist_ok=True)
+
+                # Generate PDF using PDF Generation Service
+                pdf_service = PDFGenerationService()
+                pdf_output_path = pdf_service.generate_pdf_from_date(
+                    violation_date=target_date,
+                    output_dir=reports_dir,
+                    violation_db=violation_db
+                )
+
+                if pdf_output_path and pdf_output_path.exists():
+                    logger.info(f"✅ PDF violation report generated: {pdf_output_path}")
+                    logger.info(f"📄 Report saved as: {pdf_output_path.name}")
                 else:
-                    logger.info(f"📋 No violations found from {start_date} to {end_date}")
-                    
+                    logger.error(f"❌ Failed to generate PDF report for {target_date}")
+                    return 1
+
+            except FileNotFoundError as e:
+                logger.error(f"❌ File not found: {e}")
+                logger.error(f"❌ Check that recordings directory exists for date {target_date}")
+                return 1
+            except PermissionError as e:
+                logger.error(f"❌ Permission denied: {e}")
+                logger.error(f"❌ Unable to create or write to reports directory")
+                return 1
             except Exception as e:
-                logger.error(f"Violation report failed: {e}")
+                logger.error(f"❌ Violation report failed: {e}")
                 return 1
             return
         
@@ -463,7 +498,12 @@ def main():
             from .utils.report_generator import LogBasedReportGenerator
             from datetime import datetime
             from pathlib import Path
-            
+
+            # Show deprecation warning
+            logger.warning("⚠️  DEPRECATION WARNING: --enhanced-violation-report is deprecated")
+            logger.warning("⚠️  Please use --violation-report YYYY-MM-DD instead for PDF reports")
+            logger.warning("⚠️  This command will be removed in a future version")
+
             try:
                 # Parse date
                 logger.info(f"📅 Parsing date: {args.enhanced_violation_report}")
