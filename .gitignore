@@ -64,6 +64,9 @@ samples/
 reports/
 violations/
 
+# UX Mockups
+docs/ux/mockups
+
 # UV files (platform-specific)
 uv.lock
 pyproject.toml
@@ -72,6 +75,7 @@ pyproject.toml
 scratch/
 bark_detector_flat.stats.md
 bark_detector_flat.xml
+
 # BMAD (local only)
 .bmad-core/
 .bmad-*/
