@@ -240,7 +240,17 @@ class PDFGenerationService:
         story.append(metrics_table)
         story.append(Spacer(1, 15))
 
-        # Violations Table (moved under subtitle as requested)
+        # Bark Activity (moved above Violation Details as requested)
+        story.append(Paragraph("<b>Bark Activity</b>", self.styles['Heading2']))
+        story.append(Spacer(1, 8))
+
+        # Create and add timeline chart with reduced size for single-page fit
+        timeline_image = self._generate_activity_timeline(violations, bark_events, report_date)
+        if timeline_image:
+            story.append(timeline_image)
+        story.append(Spacer(1, 15))
+
+        # Violations Table
         story.append(Paragraph("<b>Violation Details</b>", self.styles['Heading2']))
         story.append(Spacer(1, 8))
 
@@ -299,16 +309,6 @@ class PDFGenerationService:
         ]))
 
         story.append(violations_table)
-        story.append(Spacer(1, 15))
-
-        # Activity Timeline (moved to fit on same page)
-        story.append(Paragraph("<b>Activity Timeline</b>", self.styles['Heading2']))
-        story.append(Spacer(1, 8))
-
-        # Create and add timeline chart with reduced size for single-page fit
-        timeline_image = self._generate_activity_timeline(violations, bark_events, report_date)
-        if timeline_image:
-            story.append(timeline_image)
 
     def _add_detail_page(
         self,
