@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 2025-09-27
+
+### Major Infrastructure Improvements
+- **Story 2.3: Organize Daily Log Storage and Legacy Migration**: Implemented comprehensive channel-based logging system with daily log organization replacing flat file structure. Added sophisticated logging facade that separates functional concerns into detection channel (real-time monitoring, calibration, recording) and analysis channel (violation analysis, reporting, data export) with files stored as `logs/YYYY-MM-DD/YYYY-MM-DD_<channel>.log`. Enhanced configuration integration with 3-tier priority resolution (explicit parameter > config.output.logs_dir > default) and robust path validation supporting both absolute and relative paths. Restructured CLI initialization to load configuration before logging setup, resolving timing dependency issues. Applied channel-aware logging across all entry points following systematic mapping rules ensuring proper log segregation. Built comprehensive migration utility `scripts/migrate_logs_by_date.py` with intelligent channel classification using keyword patterns, error handling for malformed entries, timestamped backup creation, and detailed JSON migration summaries. Added extensive test coverage (43 tests total: 25 logging functionality + 18 migration script) validating channel determination, configuration integration, migration algorithms, and backward compatibility. Maintained legacy flat file behavior via `use_date_folders=False` parameter ensuring existing tooling compatibility. System now provides organized, date-scoped audit trails enabling easier operational reviews and evidence exports without manual log triage. Migration script successfully processes large legacy files (6,382+ lines tested) with graceful handling of malformed entries and comprehensive dry-run preview capability.
+
 ## 2025-09-23
 
 ### Major Features

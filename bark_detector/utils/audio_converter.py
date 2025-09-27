@@ -3,8 +3,9 @@
 import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+from .helpers import get_detection_logger
 
-logger = logging.getLogger(__name__)
+logger = get_detection_logger()
 
 
 class AudioFileConverter:

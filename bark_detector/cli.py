@@ -10,7 +10,7 @@ from .utils.tensorflow_suppression import suppress_tensorflow_logging
 suppress_tensorflow_logging()
 
 from .core.detector import AdvancedBarkDetector
-from .utils.helpers import setup_logging
+from .utils.helpers import setup_logging, get_detection_logger, get_analysis_logger
 from .utils.config import ConfigManager, BarkDetectorConfig
 
 logger = logging.getLogger(__name__)
@@ -108,36 +108,70 @@ Examples:
     return parser.parse_args()
 
 
+def determine_logging_channel(args):
+    """
+    Determine appropriate logging channel based on CLI arguments.
+
+    Follows Channel Mapping Rules from Technical Design.
+    """
+    analysis_commands = [
+        'analyze_violations', 'violation_report', 'export_violations',
+        'list_violations', 'enhanced_violation_report'
+    ]
+
+    if any(getattr(args, cmd, False) for cmd in analysis_commands):
+        return 'analysis'
+    else:
+        return 'detection'
+
+
 def main():
-    """Main function with command line support."""
-    # Setup logging
-    logger = setup_logging()
-    
-    args = parse_arguments()
-    
-    logger.info("=" * 70)
-    logger.info("Advanced YAMNet Bark Detector v3.0")
-    logger.info("ML-based Detection with Legal Evidence Collection")
-    logger.info("=" * 70)
-    
-    # Handle config file creation
-    if args.create_config:
-        config_manager = ConfigManager()
-        config_manager.create_default_config(args.create_config)
-        return
-    
-    # Load configuration
-    config_manager = ConfigManager()
+    """Main function with proper config-aware logging setup."""
+    # Phase 1: Minimal startup logging
+    startup_logger = setup_logging(minimal=True)
+    startup_logger.info("Starting Advanced YAMNet Bark Detector v3.0...")
+
     try:
+        # Phase 2: Argument parsing and config loading
+        args = parse_arguments()
+
+        if args.create_config:
+            config_manager = ConfigManager()
+            config_manager.create_default_config(args.create_config)
+            return
+
+        # Phase 3: Load and merge configuration
+        config_manager = ConfigManager()
         config = config_manager.load_config(args.config)
-        # Merge CLI arguments with config file (CLI takes precedence)
         config = config_manager.merge_cli_args(config, args)
-        
+
+        if args.config:
+            startup_logger.info(f"Configuration loaded from: {args.config}")
+
+        # Phase 4: Determine logging channel from arguments
+        channel = determine_logging_channel(args)
+
+        # Phase 5: Setup proper logging with configuration
+        logger = setup_logging(
+            channel=channel,
+            config=config,
+            use_date_folders=True
+        )
+
+        # Phase 6: Log startup messages to proper channel
+        logger.info("=" * 70)
+        logger.info("Advanced YAMNet Bark Detector v3.0")
+        logger.info("ML-based Detection with Legal Evidence Collection")
+        logger.info("=" * 70)
+
         if args.config:
             logger.info(f"📝 Configuration loaded from: {args.config}")
-        
+
     except (FileNotFoundError, ValueError, RuntimeError) as e:
-        logger.error(f"Configuration error: {e}")
+        startup_logger.error(f"Configuration error: {e}")
+        return
+    except ValueError as e:
+        startup_logger.error(f"Logging setup error: {e}")
         return
     
     # Convert config to detector parameters

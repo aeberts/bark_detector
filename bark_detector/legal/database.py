@@ -9,9 +9,9 @@ from typing import List, Dict
 from pathlib import Path
 from datetime import datetime
 from .models import ViolationReport, PersistedBarkEvent, Violation
-from ..utils.helpers import convert_numpy_types
+from ..utils.helpers import convert_numpy_types, get_analysis_logger
 
-logger = logging.getLogger(__name__)
+logger = get_analysis_logger()
 
 
 class ViolationDatabase:

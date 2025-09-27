@@ -11,8 +11,9 @@ from .database import ViolationDatabase
 from ..core.models import BarkingSession
 from ..utils.time_utils import parse_audio_filename_timestamp
 from ..utils.config import BarkDetectorConfig
+from ..utils.helpers import get_analysis_logger
 
-logger = logging.getLogger(__name__)
+logger = get_analysis_logger()
 
 
 class LegalViolationTracker:

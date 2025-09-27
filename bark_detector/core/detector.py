@@ -24,11 +24,11 @@ import tensorflow_hub as hub
 configure_tensorflow_after_import()
 
 from .models import BarkEvent, BarkingSession
-from ..utils.helpers import convert_numpy_types
+from ..utils.helpers import convert_numpy_types, get_detection_logger
 from ..legal.tracker import LegalViolationTracker
 from ..utils.config import BarkDetectorConfig
 
-logger = logging.getLogger(__name__)
+logger = get_detection_logger()
 
 
 class AdvancedBarkDetector:

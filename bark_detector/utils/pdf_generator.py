@@ -31,8 +31,9 @@ from matplotlib.figure import Figure
 # Import violation data models
 from ..legal.models import Violation, PersistedBarkEvent
 from ..legal.database import ViolationDatabase
+from ..utils.helpers import get_analysis_logger
 
-logger = logging.getLogger(__name__)
+logger = get_analysis_logger()
 
 
 @dataclass

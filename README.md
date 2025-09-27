@@ -277,6 +277,76 @@ uv run bd.py --calibrate-files --audio-files voice_memo.m4a background.wav
 - Requires internet connection for initial download
 - Model cached in `/tmp/tfhub_modules/`
 
+## Logging System
+
+The Bark Detector uses a sophisticated channel-based logging system that separates operational activities into distinct log files for better organization and evidence management.
+
+### Log Structure
+```
+logs/
+├── 2025-09-27/
+│   ├── 2025-09-27_detection.log    # Real-time monitoring, calibration, recording
+│   └── 2025-09-27_analysis.log     # Analysis, reports, data export
+├── 2025-09-26/
+│   ├── 2025-09-26_detection.log
+│   └── 2025-09-26_analysis.log
+└── migration_backups/              # Legacy log file backups
+    └── bark_detector.log.backup.2025-09-27T12:30:45
+```
+
+### Channel Classifications
+
+**Detection Channel** (`YYYY-MM-DD_detection.log`):
+- Default detector startup and monitoring
+- Manual recording sessions (`--manual-record`)
+- All calibration modes (`--calibrate*`, `--calibrate-realtime`, `--calibrate-files`)
+- Profile operations (`--save-profile`, `--list-profiles`)
+- Audio conversion utilities (`--convert-all`, `--convert-files`)
+
+**Analysis Channel** (`YYYY-MM-DD_analysis.log`):
+- Violation analysis (`--analyze-violations`)
+- Report generation (`--violation-report`, `--enhanced-violation-report`)
+- Data export (`--export-violations`, `--list-violations`)
+- Migration scripts and utilities
+
+### Configuration
+
+Configure the logs directory in your config file:
+```json
+{
+  "output": {
+    "logs_dir": "custom_logs"
+  }
+}
+```
+
+Or use CLI override:
+```bash
+# Use custom logs directory
+uv run python -m bark_detector --config config.json --output-dir custom_output
+```
+
+### Legacy Log Migration
+
+If you have existing `bark_detector.log` files, use the migration script to convert them to the new channel-based structure:
+
+```bash
+# Preview migration (recommended first step)
+uv run python scripts/migrate_logs_by_date.py --dry-run
+
+# Execute migration
+uv run python scripts/migrate_logs_by_date.py
+
+# Migrate specific file with custom output
+uv run python scripts/migrate_logs_by_date.py --input old_logs/bark_detector_archive.log --logs-dir custom_logs
+```
+
+The migration script:
+- Automatically classifies log entries by functional channel
+- Creates timestamped backups of original files
+- Handles malformed entries gracefully with `--continue-on-error`
+- Generates comprehensive migration summary in JSON format
+
 ## Files
 
 - `bd.py` - Main bark detector application
@@ -284,7 +354,8 @@ uv run bd.py --calibrate-files --audio-files voice_memo.m4a background.wav
 - `requirements-*.txt` - Platform-specific dependencies
 - `.python-version` - Python version specification
 - `recordings/` - Output directory for audio recordings
-- `bark_detector.log` - Application logs
+- `logs/` - Channel-based daily log files (detection/analysis)
+- `scripts/migrate_logs_by_date.py` - Legacy log migration utility
 
 ## Misc Notes
 
