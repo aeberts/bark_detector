@@ -242,7 +242,8 @@ class PDFGenerationService:
 
         # Bark Activity (moved above Violation Details as requested)
         story.append(Paragraph("<b>Bark Activity</b>", self.styles['Heading2']))
-        story.append(Spacer(1, 8))
+        # 1.5 line spacing below subtitle (1.5 * 12pt line height = 18pt)
+        story.append(Spacer(1, 18))
 
         # Create and add timeline chart with reduced size for single-page fit
         timeline_image = self._generate_activity_timeline(violations, bark_events, report_date)
@@ -460,7 +461,7 @@ class PDFGenerationService:
         bark_events: List[PersistedBarkEvent],
         report_date: str
     ) -> Optional[Image]:
-        """Generate 24-hour activity timeline chart.
+        """Generate 6am-8pm (14-hour) bark activity timeline chart with vertical lines.
 
         Args:
             violations: List of violations
@@ -474,81 +475,78 @@ class PDFGenerationService:
             fig, ax = plt.subplots(figsize=(12, 6))
             fig.patch.set_facecolor('white')
 
-            # Create time data points for each violation
-            times = []
-            intensities = []
-            colors_list = []
+            # Create mapping of bark events to violation types for color coding
+            bark_event_colors = {}
+            for violation in violations:
+                color = '#DC2626' if violation.type == "Continuous" else '#F59E0B'  # Red for continuous, orange for intermittent
+                for bark_id in violation.barkEventIds:
+                    bark_event_colors[bark_id] = color
 
+            # Plot all bark events as vertical lines
+            for event in bark_events:
+                # Parse event timestamp
+                event_dt = datetime.fromisoformat(f"{event.realworld_date}T{event.realworld_time}.000Z")
+                event_hour = event_dt.hour + event_dt.minute / 60
+
+                # Only plot events within 6am-8pm window
+                if 6 <= event_hour <= 20:
+                    # Determine color based on violation association
+                    color = bark_event_colors.get(event.bark_id, '#9CA3AF')  # Gray for non-violation events
+
+                    # Plot vertical line for bark event with height based on intensity
+                    intensity = getattr(event, 'intensity', self.config.default_intensity)
+                    # Use default intensity if intensity is 0.0 (missing/invalid data)
+                    if intensity == 0.0:
+                        intensity = self.config.default_intensity
+                    ax.plot([event_hour, event_hour], [0, intensity], color=color, alpha=0.7, linewidth=1.5)
+
+            # Plot violation periods as thicker vertical lines
             for violation in violations:
                 # Parse start and end times
                 start_dt = datetime.fromisoformat(violation.startTimestamp.replace('Z', '+00:00'))
                 end_dt = datetime.fromisoformat(violation.endTimestamp.replace('Z', '+00:00'))
 
-                start_decimal = start_dt.hour + start_dt.minute/60
-                end_decimal = end_dt.hour + end_dt.minute/60
+                start_hour = start_dt.hour + start_dt.minute / 60
+                end_hour = end_dt.hour + end_dt.minute / 60
 
-                # Create multiple points across the violation duration
-                duration_hours = end_decimal - start_decimal
-                if duration_hours < 0:  # Handle day boundary crossing
-                    duration_hours += 24
+                # Only plot violations within or overlapping 6am-8pm window
+                if start_hour <= 20 and end_hour >= 6:
+                    # Clip to 6am-8pm bounds
+                    plot_start = max(6, start_hour)
+                    plot_end = min(20, end_hour)
 
-                num_points = max(3, int(duration_hours * 4))  # More points for longer violations
+                    color = '#DC2626' if violation.type == "Continuous" else '#F59E0B'
 
-                for i in range(num_points):
-                    time_point = start_decimal + (duration_hours * i / (num_points - 1))
-                    if time_point >= 24:
-                        time_point -= 24
-                    times.append(time_point)
+                    # Plot thicker lines at start and end of violation periods (full height markers)
+                    ax.axvline(x=plot_start, color=color, alpha=0.6, linewidth=2.5)
+                    if plot_end != plot_start:
+                        ax.axvline(x=plot_end, color=color, alpha=0.6, linewidth=2.5)
 
-                    # Intensity based on barks per minute
-                    duration_minutes = violation.durationMinutes
-                    barks_per_minute = len(violation.barkEventIds) / duration_minutes if duration_minutes > 0 else 0
-                    intensity = min(1.0, barks_per_minute / 10)  # Normalize to 0-1 scale
-                    intensities.append(intensity)
+            # Formatting for 6am-8pm window
+            ax.set_xlim(5.5, 20.5)  # 6am to 8pm with slight margins
+            ax.set_ylim(0, 1)
+            ax.set_xlabel('Time of Day (6am - 8pm)', fontsize=12, fontweight='bold')
+            ax.set_ylabel('Bark Intensity (0.0 - 1.0)', fontsize=12, fontweight='bold')
+            ax.set_title(f'Bark Activity Chart for {report_date} (6:00 AM - 8:00 PM)', fontsize=14, fontweight='bold', pad=20)
 
-                    # Color coding
-                    if violation.type == "Continuous":
-                        colors_list.append('#DC2626')  # Red
-                    else:
-                        colors_list.append('#F59E0B')  # Orange
+            # Set time ticks for 6am-8pm range
+            ax.set_xticks(range(6, 21, 2))
+            ax.set_xticklabels([f'{h:02d}:00' for h in range(6, 21, 2)], rotation=45)
 
-            # Create bar chart instead of scatter for better visibility
-            if times and intensities:
-                # Create hourly bins
-                hours = list(range(24))
-                hourly_intensities = [0] * 24
-                hourly_colors = ['#F59E0B'] * 24  # Default to orange
+            # Set y-axis ticks for intensity scale 0.0 to 1.0
+            ax.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
+            ax.set_yticklabels(['0.0', '0.2', '0.4', '0.6', '0.8', '1.0'])
 
-                # Aggregate intensities by hour
-                for time_val, intensity, color in zip(times, intensities, colors_list):
-                    hour = int(time_val) % 24
-                    if intensity > hourly_intensities[hour]:
-                        hourly_intensities[hour] = intensity
-                        hourly_colors[hour] = color
-
-                # Create bar chart
-                bars = ax.bar(hours, hourly_intensities, color=hourly_colors, alpha=0.7, width=0.8)
-
-            # Formatting
-            ax.set_xlim(-0.5, 23.5)
-            ax.set_ylim(0, 1.1)
-            ax.set_xlabel('Time of Day (Hours)', fontsize=12, fontweight='bold')
-            ax.set_ylabel('Bark Intensity Level', fontsize=12, fontweight='bold')
-            ax.set_title(f'Barking Violations for {report_date}', fontsize=14, fontweight='bold', pad=20)
-
-            # Set time ticks
-            ax.set_xticks(range(0, 24, 2))
-            ax.set_xticklabels([f'{h:02d}:00' for h in range(0, 24, 2)], rotation=45)
-
-            # Grid
-            ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+            # Grid for both axes to show intensity levels
+            ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5, axis='both')
             ax.set_facecolor('#FAFAFA')
 
-            # Legend
+            # Legend for vertical lines
             from matplotlib.patches import Patch
             legend_elements = [
-                Patch(facecolor='#DC2626', label='Constant Violations'),
-                Patch(facecolor='#F59E0B', label='Intermittent Violations')
+                Patch(facecolor='#DC2626', label='Continuous Violation Events'),
+                Patch(facecolor='#F59E0B', label='Intermittent Violation Events'),
+                Patch(facecolor='#9CA3AF', label='Other Bark Events')
             ]
             ax.legend(handles=legend_elements, loc='upper right', frameon=True, fancybox=True, shadow=True)
 

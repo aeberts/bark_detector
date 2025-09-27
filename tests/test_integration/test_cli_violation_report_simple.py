@@ -102,7 +102,11 @@ class TestViolationReportLogic:
         test_args = ["bark_detector", "--violation-report", "invalid-date"]
 
         with patch.object(sys, 'argv', test_args):
-            with patch('bark_detector.cli.logger') as mock_logger:
+            # We need to patch the logger at the module level, not the setup_logging result
+            with patch('bark_detector.cli.setup_logging') as mock_setup_logging:
+                mock_logger = Mock()
+                mock_setup_logging.return_value = mock_logger
+
                 result = main()
 
                 # Should return error code
@@ -121,21 +125,37 @@ class TestViolationReportLogic:
         mock_detector_instance.analyze_violations_for_date.return_value = []
         mock_detector.return_value = mock_detector_instance
 
-        # Mock PathLib for the violations file path check
-        with patch('bark_detector.cli.PathLib') as mock_path_class:
-            # Setup the mock path for the violations file
-            mock_violation_file = Mock()
-            mock_violation_file.exists.return_value = False
+        test_args = ["bark_detector", "--violation-report", "2025-01-15"]
 
-            # Create mock for PathLib() call that returns the violations dir path
-            mock_violations_dir = Mock()
-            mock_violations_dir.__truediv__ = Mock(side_effect=lambda x: Mock(__truediv__=Mock(return_value=mock_violation_file)))
-            mock_path_class.return_value = mock_violations_dir
+        with patch.object(sys, 'argv', test_args):
+            # Mock all the service dependencies to focus on the logic
+            with patch('bark_detector.legal.database.ViolationDatabase') as mock_viol_db, \
+                 patch('bark_detector.utils.pdf_generator.PDFGenerationService') as mock_pdf_service, \
+                 patch('pathlib.Path') as mock_path_class:
 
-            test_args = ["bark_detector", "--violation-report", "2025-01-15"]
+                # Setup the mock path for the violations file
+                mock_violation_file = Mock()
+                mock_violation_file.exists.return_value = False
 
-            with patch.object(sys, 'argv', test_args):
-                with patch('bark_detector.cli.logger') as mock_logger:
+                # Create mock for Path() calls
+                mock_violations_dir = Mock()
+                mock_violations_dir.__truediv__ = Mock(side_effect=lambda x: Mock(__truediv__=Mock(return_value=mock_violation_file)))
+                mock_reports_dir = Mock()
+                mock_reports_dir.mkdir = Mock()
+
+                def path_side_effect(path_str):
+                    if path_str == 'violations':
+                        return mock_violations_dir
+                    elif path_str == 'reports':
+                        return mock_reports_dir
+                    return Mock()
+
+                mock_path_class.side_effect = path_side_effect
+
+                with patch('bark_detector.cli.setup_logging') as mock_setup_logging:
+                    mock_logger = Mock()
+                    mock_setup_logging.return_value = mock_logger
+
                     result = main()
 
                     # Should return success code (0) even with no violations
@@ -151,11 +171,19 @@ class TestViolationReportLogic:
         test_args = ["bark_detector", "--enhanced-violation-report", "2025-01-15"]
 
         with patch.object(sys, 'argv', test_args):
-            with patch('bark_detector.cli.logger') as mock_logger:
-                # Mock other dependencies to avoid errors, we only care about deprecation warning
-                with patch('bark_detector.cli.AdvancedBarkDetector'), \
-                     patch('bark_detector.utils.report_generator.LogBasedReportGenerator'), \
-                     patch('datetime.datetime'):
+            # Mock other dependencies to avoid errors, we only care about deprecation warning
+            with patch('bark_detector.cli.AdvancedBarkDetector'), \
+                 patch('bark_detector.utils.report_generator.LogBasedReportGenerator'), \
+                 patch('datetime.datetime') as mock_datetime:
+
+                # Configure datetime mock to return proper date object
+                from datetime import date
+                mock_datetime.strptime.return_value.date.return_value = date(2025, 1, 15)
+
+                # Use setup_logging mock to capture the logger warnings
+                with patch('bark_detector.cli.setup_logging') as mock_setup_logging:
+                    mock_logger = Mock()
+                    mock_setup_logging.return_value = mock_logger
 
                     try:
                         result = main()
