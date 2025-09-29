@@ -47,12 +47,14 @@ class LegalViolationTracker:
             self.intermittent_gap_threshold = config.legal.intermittent_gap_threshold
             self.constant_gap_threshold = config.legal.constant_gap_threshold
             self.session_gap_threshold = config.detection.session_gap_threshold
+            self.overwrite_mode = config.legal.overwrite_mode
         else:
             # Default values (backward compatibility)
             self.constant_violation_duration = 300  # 5 minutes
             self.intermittent_threshold = 900    # 15 minutes
             self.intermittent_gap_threshold = 300  # 5 minutes
             self.constant_gap_threshold = 10.0  # 10 seconds - legal analysis gap
+            self.overwrite_mode = "overwrite"  # Default overwrite behavior
             self.session_gap_threshold = 10.0  # 10 seconds - recording gap
 
     def _convert_to_algorithm_input_events(self, events: List[PersistedBarkEvent]) -> List[AlgorithmInputEvent]:
@@ -504,6 +506,10 @@ class LegalViolationTracker:
                     logger.debug(f"No bark events detected in {recording_file.name}")
                     continue
 
+                # Calculate intensity for each detected bark event using existing detector logic
+                for event in bark_events:
+                    event.intensity = detector._calculate_event_intensity(audio_data, event)
+
                 # Convert bark events to PersistedBarkEvent objects
                 file_persisted_events = self._convert_to_persisted_events(
                     bark_events, recording_file.name, target_date
@@ -540,7 +546,7 @@ class LegalViolationTracker:
             logger.info(f"💾 Saving {combined_count} bark events to database")
             all_bark_events.extend(newly_persisted_events)
             if self.violation_db:
-                self.violation_db.save_events(all_bark_events, target_date)
+                self.violation_db.save_events(all_bark_events, target_date, self.overwrite_mode)
 
         if not all_bark_events:
             logger.info(f"No bark events available for violation analysis on {target_date}")
@@ -569,7 +575,7 @@ class LegalViolationTracker:
         # Save violations to database using new persistence layer
         if violations:
             logger.info(f"💾 Saving {len(violations)} violations to database")
-            self.violation_db.save_violations_new(violations, target_date)
+            self.violation_db.save_violations_new(violations, target_date, self.overwrite_mode)
 
         # Convert Violation objects to ViolationReport for backward compatibility
         violation_reports = self._convert_to_violation_reports(violations, date_recordings, target_date)

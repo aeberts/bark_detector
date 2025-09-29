@@ -87,25 +87,41 @@ class ViolationDatabase:
             # Legacy mode doesn't support events files
             raise ValueError("Events files are only supported in date-based structure mode")
     
-    def save_events(self, events: List[PersistedBarkEvent], date: str):
+    def save_events(self, events: List[PersistedBarkEvent], date: str, overwrite_mode: str = "overwrite"):
         """Save events to date-partitioned file structure.
-        
+
         Args:
             events: List of PersistedBarkEvent objects to save
             date: Date in YYYY-MM-DD format
+            overwrite_mode: "overwrite" (default) or "prompt" for user choice
         """
         if not self.use_date_structure:
             raise ValueError("save_events() only supported in date-based structure mode")
-        
+
         if not events:
             return
-            
+
+        # Handle overwrite mode logic
+        if overwrite_mode == "prompt" and self.has_analysis_files_for_date(date):
+            choice = self.prompt_overwrite_choice(date)
+            if choice == 'q':
+                logger.info(f"❌ User chose to quit - existing analysis files for {date} unchanged")
+                return
+            elif choice == 'a':
+                logger.info(f"📝 User chose to append - merging with existing events for {date}")
+                self.append_events(events, date)
+                return
+            elif choice == 'o':
+                logger.info(f"🔄 User chose to overwrite - replacing existing analysis files for {date}")
+        elif overwrite_mode == "overwrite" and self.has_analysis_files_for_date(date):
+            logger.info(f"🔄 Overwriting existing analysis files for {date}")
+
         events_file = self._get_events_file_path(date)
-        
+
         try:
             # Create directory structure
             events_file.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Convert events to dictionaries
             events_data = {
                 'events': [event.to_dict() for event in events],
@@ -115,12 +131,12 @@ class ViolationDatabase:
                     'created_timestamp': datetime.now().isoformat()
                 }
             }
-            
+
             with open(events_file, 'w') as f:
                 json.dump(events_data, f, indent=2)
-            
+
             logger.debug(f"💾 Saved {len(events)} events to {events_file}")
-                
+
         except Exception as e:
             logger.error(f"Could not save events for date {date}: {e}")
     
@@ -150,25 +166,41 @@ class ViolationDatabase:
         
         return events
     
-    def save_violations_new(self, violations: List[Violation], date: str):
+    def save_violations_new(self, violations: List[Violation], date: str, overwrite_mode: str = "overwrite"):
         """Save violations to date-partitioned file structure.
-        
+
         Args:
             violations: List of Violation objects to save
             date: Date in YYYY-MM-DD format
+            overwrite_mode: "overwrite" (default) or "prompt" for user choice
         """
         if not self.use_date_structure:
             raise ValueError("save_violations_new() only supported in date-based structure mode")
-        
+
         if not violations:
             return
-            
+
+        # Handle overwrite mode logic
+        if overwrite_mode == "prompt" and self.has_analysis_files_for_date(date):
+            choice = self.prompt_overwrite_choice(date)
+            if choice == 'q':
+                logger.info(f"❌ User chose to quit - existing analysis files for {date} unchanged")
+                return
+            elif choice == 'a':
+                logger.info(f"📝 User chose to append - merging with existing violations for {date}")
+                self.append_violations(violations, date)
+                return
+            elif choice == 'o':
+                logger.info(f"🔄 User chose to overwrite - replacing existing analysis files for {date}")
+        elif overwrite_mode == "overwrite" and self.has_analysis_files_for_date(date):
+            logger.info(f"🔄 Overwriting existing analysis files for {date}")
+
         violations_file = self._get_violations_file_path(date)
-        
+
         try:
             # Create directory structure
             violations_file.parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Convert violations to dictionaries
             violations_data = {
                 'violations': [violation.to_dict() for violation in violations],
@@ -178,12 +210,12 @@ class ViolationDatabase:
                     'created_timestamp': datetime.now().isoformat()
                 }
             }
-            
+
             with open(violations_file, 'w') as f:
                 json.dump(violations_data, f, indent=2)
-            
+
             logger.debug(f"💾 Saved {len(violations)} violations to {violations_file}")
-                
+
         except Exception as e:
             logger.error(f"Could not save violations for date {date}: {e}")
     
@@ -434,7 +466,128 @@ class ViolationDatabase:
             return violations_file.exists() and len(self._load_violations_for_date(date)) > 0
         else:
             return any(v.date == date for v in self.violations)
-    
+
+    def has_analysis_files_for_date(self, date: str) -> bool:
+        """Check if analysis files (events.json and/or violations.json) exist for a specific date."""
+        if not self.use_date_structure:
+            return self.has_violations_for_date(date)
+
+        events_file = self._get_events_file_path(date)
+        violations_file = self._get_violations_file_path(date)
+
+        return events_file.exists() or violations_file.exists()
+
+    def prompt_overwrite_choice(self, date: str) -> str:
+        """Prompt user for overwrite choice when analysis files exist.
+
+        Args:
+            date: Date in YYYY-MM-DD format
+
+        Returns:
+            User choice: 'q' (quit), 'o' (overwrite), or 'a' (append)
+        """
+        events_file = self._get_events_file_path(date)
+        violations_file = self._get_violations_file_path(date)
+
+        print(f"\n⚠️  Analysis files already exist for {date}:")
+        if events_file.exists():
+            print(f"   📁 Events file: {events_file.name}")
+        if violations_file.exists():
+            print(f"   📁 Violations file: {violations_file.name}")
+
+        print("\nChoose an action:")
+        print("  q) Quit and do nothing (leave existing files unchanged)")
+        print("  o) Overwrite existing files with new analysis")
+        print("  a) Append new analysis to existing files")
+
+        while True:
+            choice = input("\nEnter your choice (q/o/a): ").lower().strip()
+            if choice in ['q', 'o', 'a']:
+                return choice
+            print("❌ Invalid choice. Please enter 'q', 'o', or 'a'.")
+
+    def append_events(self, new_events: List[PersistedBarkEvent], date: str):
+        """Append new events to existing events file, merging with existing data.
+
+        Args:
+            new_events: List of new PersistedBarkEvent objects to append
+            date: Date in YYYY-MM-DD format
+        """
+        if not self.use_date_structure:
+            raise ValueError("append_events() only supported in date-based structure mode")
+
+        if not new_events:
+            return
+
+        events_file = self._get_events_file_path(date)
+        existing_events = self.load_events(date)
+
+        # Merge existing and new events
+        all_events = existing_events + new_events
+
+        # Save merged events
+        try:
+            events_file.parent.mkdir(parents=True, exist_ok=True)
+
+            events_data = {
+                'events': [event.to_dict() for event in all_events],
+                'metadata': {
+                    'date': date,
+                    'total_events': len(all_events),
+                    'created_timestamp': datetime.now().isoformat(),
+                    'appended_events': len(new_events)
+                }
+            }
+
+            with open(events_file, 'w') as f:
+                json.dump(events_data, f, indent=2)
+
+            logger.info(f"📝 Appended {len(new_events)} events to existing {len(existing_events)} events for {date}")
+
+        except Exception as e:
+            logger.error(f"Could not append events for date {date}: {e}")
+
+    def append_violations(self, new_violations: List[Violation], date: str):
+        """Append new violations to existing violations file, merging with existing data.
+
+        Args:
+            new_violations: List of new Violation objects to append
+            date: Date in YYYY-MM-DD format
+        """
+        if not self.use_date_structure:
+            raise ValueError("append_violations() only supported in date-based structure mode")
+
+        if not new_violations:
+            return
+
+        violations_file = self._get_violations_file_path(date)
+        existing_violations = self.load_violations_new(date)
+
+        # Merge existing and new violations
+        all_violations = existing_violations + new_violations
+
+        # Save merged violations
+        try:
+            violations_file.parent.mkdir(parents=True, exist_ok=True)
+
+            violations_data = {
+                'violations': [violation.to_dict() for violation in all_violations],
+                'metadata': {
+                    'date': date,
+                    'total_violations': len(all_violations),
+                    'created_timestamp': datetime.now().isoformat(),
+                    'appended_violations': len(new_violations)
+                }
+            }
+
+            with open(violations_file, 'w') as f:
+                json.dump(violations_data, f, indent=2)
+
+            logger.info(f"📝 Appended {len(new_violations)} violations to existing {len(existing_violations)} violations for {date}")
+
+        except Exception as e:
+            logger.error(f"Could not append violations for date {date}: {e}")
+
     def get_violations_by_date_range(self, start_date: str, end_date: str) -> List[ViolationReport]:
         """Get violations within date range (YYYY-MM-DD format)."""
         if self.use_date_structure:

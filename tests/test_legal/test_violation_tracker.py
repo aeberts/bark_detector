@@ -33,6 +33,22 @@ def build_tracker_with_temp_db(temp_dir: Path, interactive: bool = False) -> Leg
     return LegalViolationTracker(violation_db=db, interactive=interactive)
 
 
+def create_mock_detector_with_intensity():
+    """Create a properly mocked detector with intensity calculation support."""
+    mock_detector = Mock()
+    mock_detector.sample_rate = 16000
+    mock_detector.session_gap_threshold = 10.0
+    mock_detector.analysis_sensitivity = 0.30
+
+    # Mock the intensity calculation method to return realistic values
+    def mock_calculate_intensity(audio_data, event):
+        # Return intensity based on confidence (simulating real calculation)
+        return 0.6 * 0.5 + 0.4 * event.confidence  # Simulates volume (0.5) + confidence formula
+
+    mock_detector._calculate_event_intensity.side_effect = mock_calculate_intensity
+    return mock_detector
+
+
 class TestLegalViolationTracker:
     """Test LegalViolationTracker class"""
     
@@ -86,10 +102,7 @@ class TestLegalViolationTracker:
     def test_analyze_recordings_for_date(self, mock_librosa_load, temp_dir):
         """Test analyzing recordings for a specific date"""
         tracker = build_tracker_with_temp_db(temp_dir)
-        mock_detector = Mock()
-        mock_detector.sample_rate = 16000
-        mock_detector.session_gap_threshold = 10.0
-        mock_detector.analysis_sensitivity = 0.30
+        mock_detector = create_mock_detector_with_intensity()
 
         # Mock the _detect_barks_in_buffer_with_sensitivity method to return bark events for continuous violation
         mock_bark_events = create_continuous_bark_events(total_minutes=6.0, gap_seconds=8.0)
@@ -121,10 +134,7 @@ class TestLegalViolationTracker:
     def test_analyze_recordings_no_violations(self, mock_librosa_load, temp_dir):
         """Test analyzing recordings with no violations"""
         tracker = build_tracker_with_temp_db(temp_dir)
-        mock_detector = Mock()
-        mock_detector.sample_rate = 16000
-        mock_detector.session_gap_threshold = 10.0
-        mock_detector.analysis_sensitivity = 0.30
+        mock_detector = create_mock_detector_with_intensity()
 
         # Mock the _detect_barks_in_buffer_with_sensitivity method to return short bark events (no violations)
         mock_bark_events = [
@@ -160,10 +170,7 @@ class TestLegalViolationTracker:
     def test_analyze_recordings_flat_structure(self, mock_librosa_load, temp_dir):
         """Test analyzing recordings in flat directory structure"""
         tracker = build_tracker_with_temp_db(temp_dir)
-        mock_detector = Mock()
-        mock_detector.sample_rate = 16000
-        mock_detector.session_gap_threshold = 10.0
-        mock_detector.analysis_sensitivity = 0.30
+        mock_detector = create_mock_detector_with_intensity()
 
         # Mock the _detect_barks_in_buffer_with_sensitivity method to return bark events for continuous violation
         mock_bark_events = create_continuous_bark_events(total_minutes=6.0, gap_seconds=8.0)
@@ -415,10 +422,7 @@ class TestLegalViolationTracker:
         tracker = LegalViolationTracker(violation_db=mock_db, interactive=False)
 
         # Mock detector
-        mock_detector = Mock()
-        mock_detector.sample_rate = 16000
-        mock_detector.session_gap_threshold = 10.0
-        mock_detector.analysis_sensitivity = 0.30
+        mock_detector = create_mock_detector_with_intensity()
 
         # Mock audio data and bark events
         mock_librosa.load.return_value = (np.array([0.1, 0.2, 0.3] * 1000), 16000)
@@ -601,11 +605,8 @@ class TestLegalViolationTracker:
         tracker = build_tracker_with_temp_db(temp_dir)
 
         # Create mock detector with different sensitivities
-        mock_detector = Mock()
-        mock_detector.sample_rate = 16000
-        mock_detector.session_gap_threshold = 10.0
-        mock_detector.sensitivity = 0.68  # Real-time sensitivity
-        mock_detector.analysis_sensitivity = 0.30  # Analysis sensitivity
+        mock_detector = create_mock_detector_with_intensity()
+        mock_detector.sensitivity = 0.68  # Real-time sensitivity override
 
         # Mock analysis method specifically
         mock_detector._detect_barks_in_buffer_with_sensitivity = Mock()
@@ -639,11 +640,8 @@ class TestLegalViolationTracker:
         tracker = build_tracker_with_temp_db(temp_dir)
 
         # Create mock detector
-        mock_detector = Mock()
-        mock_detector.sample_rate = 16000
-        mock_detector.session_gap_threshold = 10.0
-        mock_detector.sensitivity = 0.68
-        mock_detector.analysis_sensitivity = 0.30
+        mock_detector = create_mock_detector_with_intensity()
+        mock_detector.sensitivity = 0.68  # Override for this test
 
         # Simulate different detection results based on sensitivity
         def mock_detect_with_sensitivity(audio_data, sensitivity):
@@ -913,10 +911,8 @@ class TestLegalViolationTracker:
             tracker = LegalViolationTracker(violation_db=db)
 
             # Mock detector with dual sensitivity
-            mock_detector = Mock()
-            mock_detector.sample_rate = 16000
-            mock_detector.session_gap_threshold = 10.0
-            mock_detector.analysis_sensitivity = 0.3
+            mock_detector = create_mock_detector_with_intensity()
+            mock_detector.analysis_sensitivity = 0.3  # Override for this test
 
             # Mock bark events for violation analysis
             mock_bark_events = create_continuous_bark_events(total_minutes=6.0, gap_seconds=8.0)
@@ -946,3 +942,69 @@ class TestLegalViolationTracker:
                     assert hasattr(violation, 'total_bark_duration')
                     assert violation.violation_type in ["Constant", "Intermittent"]
                     assert violation.date == "2025-08-18"
+
+    def test_intensity_calculation_during_analysis(self):
+        """Test that bark events get intensity calculated during analysis workflow"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tracker = build_tracker_with_temp_db(Path(temp_dir))
+
+            # Create mock detector with intensity calculation method
+            mock_detector = Mock()
+            mock_detector.analysis_sensitivity = 0.30
+
+            # Mock bark events initially with zero intensity (as returned by _detect_barks_in_buffer_with_sensitivity)
+            mock_bark_events = [
+                BarkEvent(start_time=0.0, end_time=1.0, confidence=0.8, intensity=0.0),
+                BarkEvent(start_time=2.0, end_time=3.0, confidence=0.7, intensity=0.0),
+                BarkEvent(start_time=4.0, end_time=5.0, confidence=0.9, intensity=0.0)
+            ]
+
+            # Mock the detection method to return events with zero intensity
+            mock_detector._detect_barks_in_buffer_with_sensitivity.return_value = mock_bark_events
+
+            # Mock the intensity calculation method to return realistic values
+            def mock_calculate_intensity(audio_data, event):
+                # Return intensity based on confidence (simulating real calculation)
+                return 0.6 * 0.5 + 0.4 * event.confidence  # Simulates volume (0.5) + confidence formula
+
+            mock_detector._calculate_event_intensity.side_effect = mock_calculate_intensity
+
+            # Create test audio file
+            date_folder = Path(temp_dir) / "2025-09-25"
+            date_folder.mkdir()
+            test_file = date_folder / "bark_recording_20250925_120000.wav"
+            test_file.touch()
+
+            # Mock librosa.load to return test audio data
+            with patch('librosa.load') as mock_librosa_load:
+                mock_audio_data = np.random.rand(16000)  # 1 second of audio at 16kHz
+                mock_librosa_load.return_value = (mock_audio_data, 16000)
+
+                # Run analysis
+                violations = tracker.analyze_recordings_for_date(Path(temp_dir), "2025-09-25", mock_detector)
+
+                # Verify intensity calculation was called for each event
+                assert mock_detector._calculate_event_intensity.call_count == len(mock_bark_events)
+
+                # Verify each call was made with correct parameters
+                for i, call_args in enumerate(mock_detector._calculate_event_intensity.call_args_list):
+                    audio_data_arg, event_arg = call_args[0]
+                    assert np.array_equal(audio_data_arg, mock_audio_data)
+                    assert event_arg == mock_bark_events[i]
+
+                # Verify events now have non-zero intensity values
+                for event in mock_bark_events:
+                    assert event.intensity > 0.0, f"Event should have calculated intensity, got {event.intensity}"
+                    # Verify intensity is calculated correctly based on our mock
+                    expected_intensity = 0.6 * 0.5 + 0.4 * event.confidence
+                    assert abs(event.intensity - expected_intensity) < 0.001, f"Expected {expected_intensity}, got {event.intensity}"
+
+                # Check that persisted events also have the calculated intensity
+                events_file = Path(temp_dir) / "violations" / "2025-09-25" / "2025-09-25_events.json"
+                if events_file.exists():
+                    import json
+                    with open(events_file, 'r') as f:
+                        events_data = json.load(f)
+
+                    for persisted_event in events_data.get('events', []):
+                        assert persisted_event['intensity'] > 0.0, f"Persisted event should have non-zero intensity, got {persisted_event['intensity']}"

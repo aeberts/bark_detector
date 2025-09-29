@@ -78,6 +78,8 @@ Examples:
     # Analysis modes
     parser.add_argument('--analyze-violations', type=str,
                         help='Analyze recordings for bylaw violations using YAMNet ML analysis (date: YYYY-MM-DD). Creates structured JSON files with bark events and violations in violations/[DATE]/ directory.')
+    parser.add_argument('--overwrite-mode', type=str, choices=['overwrite', 'prompt'],
+                        help='Overwrite mode for violation analysis: "overwrite" (default) or "prompt" for user choice')
     parser.add_argument('--violation-report', type=str, metavar='YYYY-MM-DD',
                         help='Generate PDF violation report for specified date (automatically runs analysis if needed)')
     parser.add_argument('--export-violations', type=str,

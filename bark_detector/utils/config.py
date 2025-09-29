@@ -58,6 +58,7 @@ class LegalConfig:
     intermittent_violation_duration: int = 900    # 15 minutes in seconds
     intermittent_gap_threshold: int = 300  # 5 minutes in seconds
     constant_gap_threshold: float = 10.0  # 10 seconds - gap that invalidates constant violations
+    overwrite_mode: str = "overwrite"  # "overwrite" or "prompt"
 
 
 @dataclass
@@ -187,11 +188,15 @@ class ConfigManager:
         # Legal config
         if 'legal' in data:
             legal_data = data['legal']
+            overwrite_mode = legal_data.get('overwrite_mode', 'overwrite')
+            self._validate_overwrite_mode(overwrite_mode)
+
             config.legal = LegalConfig(
                 constant_violation_duration=self._validate_int(legal_data.get('constant_violation_duration', 300), 60, 1800, 'constant_violation_duration'),
                 intermittent_violation_duration=self._validate_int(legal_data.get('intermittent_violation_duration', legal_data.get('sporadic_threshold', 900)), 300, 7200, 'intermittent_violation_duration'),
                 intermittent_gap_threshold=self._validate_int(legal_data.get('intermittent_gap_threshold', legal_data.get('sporadic_gap_threshold', 300)), 30, 1800, 'intermittent_gap_threshold'),
-                constant_gap_threshold=self._validate_float(legal_data.get('constant_gap_threshold', 10.0), 1.0, 60.0, 'constant_gap_threshold')
+                constant_gap_threshold=self._validate_float(legal_data.get('constant_gap_threshold', 10.0), 1.0, 60.0, 'constant_gap_threshold'),
+                overwrite_mode=overwrite_mode
             )
         
         return config
@@ -215,7 +220,18 @@ class ConfigManager:
             raise ValueError(f"Configuration parameter '{name}' must be between {min_val} and {max_val}, got {value}")
 
         return int(value)
-    
+
+    def _validate_overwrite_mode(self, value: str) -> str:
+        """Validate overwrite_mode parameter."""
+        if not isinstance(value, str):
+            raise ValueError(f"Configuration parameter 'overwrite_mode' must be a string, got {type(value).__name__}")
+
+        valid_modes = ["overwrite", "prompt"]
+        if value not in valid_modes:
+            raise ValueError(f"Configuration parameter 'overwrite_mode' must be one of {valid_modes}, got '{value}'")
+
+        return value
+
     def save_config(self, config: BarkDetectorConfig, config_path: Union[str, Path]):
         """Save configuration to file."""
         config_file = Path(config_path)
@@ -258,5 +274,7 @@ class ConfigManager:
             merged_config.output.recordings_dir = args.output_dir
         if hasattr(args, 'profile') and args.profile is not None:
             merged_config.calibration.default_profile = args.profile
-        
+        if hasattr(args, 'overwrite_mode') and args.overwrite_mode is not None:
+            merged_config.legal.overwrite_mode = args.overwrite_mode
+
         return merged_config
